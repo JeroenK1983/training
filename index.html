@@ -536,6 +536,13 @@ function badgeHtml(b=[]) {
   }).join('');
 }
 
+function getLastSets(exId) {
+  const prev = sessions.filter(s=>s.exercises&&s.exercises[exId]);
+  if(!prev.length) return [];
+  const last = prev[prev.length-1];
+  return last.exercises[exId]?.sets || [];
+}
+
 function prevBest(exId) {
   const prev = sessions.filter(s=>s.exercises&&s.exercises[exId]);
   if(!prev.length) return null;
@@ -558,12 +565,15 @@ function buildExerciseCards(tpl) {
     secExIds.forEach(id=>{
       const ex = LIB[id];
       const pb = prevBest(id);
+      const lastSets = getLastSets(id);
       let rows='';
       for(let i=1;i<=ex.sets;i++) {
+        const lastKg = lastSets[i-1]?.kg || '';
+        const lastReps = lastSets[i-1]?.reps || '';
         rows+=`<div class="sr">
           <span class="sn">${i}</span>
-          <input type="number" placeholder="kg" step="2.5" id="kg-${id}-${i}" onchange="updateProgress()">
-          <input type="number" placeholder="reps" id="rp-${id}-${i}" onchange="updateProgress()">
+          <input type="number" placeholder="kg" step="2.5" id="kg-${id}-${i}" value="${lastKg}" onchange="updateProgress()">
+          <input type="number" placeholder="reps" id="rp-${id}-${i}" value="${lastReps}" onchange="updateProgress()">
           <input type="number" placeholder="RPE" min="1" max="10" id="rpe-${id}-${i}">
           <button class="db" onclick="toggleDone(this)" id="db-${id}-${i}">○</button>
         </div>`;
