@@ -305,7 +305,7 @@ body {
 <div class="page" id="pg-history">
   <div class="ph">
     <div><div class="pt">History</div><div class="ps">All Sessions</div></div>
-    <button class="btn btn-d btn-sm" onclick="clearAll()">Clear All</button>
+    <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-sm" onclick="exportData()" style="border-color:var(--accent);color:var(--accent)">⬆ Export</button><label class="btn btn-sm" style="border-color:var(--blue);color:var(--blue);cursor:pointer">⬇ Import<input type="file" accept=".json" onchange="importData(event)" style="display:none"></label><button class="btn btn-d btn-sm" onclick="clearAll()">Clear</button></div>
   </div>
   <div id="hist-list"><div class="empty"><div class="ei">📋</div><h3>No sessions yet</h3><p>Complete your first workout to see it here.</p></div></div>
 </div>
@@ -763,3 +763,42 @@ initHome();
 </script>
 </body>
 </html>
+<script>
+function exportData() {
+  const blob = new Blob([JSON.stringify(sessions, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'training_' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData(e) {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      const imported = JSON.parse(ev.target.result);
+      if(!Array.isArray(imported)) throw new Error('Invalid');
+      const existing = sessions.map(s => s.id);
+      const newSessions = imported.filter(s => !existing.includes(s.id));
+      sessions = [...sessions, ...newSessions].sort((a,b) => new Date(a.date)-new Date(b.date));
+      save();
+      renderHistory();
+      updateStats();
+      const st = document.getElementById('import-status');
+      if(st) {
+        st.textContent = '✓ Imported ' + newSessions.length + ' new sessions';
+        st.style.display = 'block';
+        setTimeout(() => st.style.display='none', 4000);
+      }
+    } catch(err) {
+      alert('Import failed — invalid file');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+</script>
