@@ -1425,9 +1425,26 @@ function renderCharts() {
 }
 
 // ═══════════════════════════════════════════════════════
+// MIGRATE from v3
+// ═══════════════════════════════════════════════════════
+function migrateFromV3() {
+  try {
+    const old = localStorage.getItem('jeroen_v3');
+    if(!old) return;
+    const oldData = JSON.parse(old);
+    if(Array.isArray(oldData) && oldData.length > 0 && sessions.length === 0) {
+      sessions = oldData;
+      save();
+      console.log('Migrated', oldData.length, 'sessions from v3');
+    }
+  } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════
 load();
+migrateFromV3();
 initHome();
 </script>
 </body>
