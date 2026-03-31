@@ -730,6 +730,7 @@ let activeExIds = [];
 let editingCustomIdx = -1;
 let chartInst = {};
 let swimChartInst = null;
+let editingSessionId = null;
 let timerInterval = null;
 let timerRemaining = 0;
 let timerTotal = 0;
@@ -994,8 +995,102 @@ function getLastValues(exId) {
 // ═══════════════════════════════════════════════════════
 // LOGGING
 // ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// EDIT SESSION FROM HISTORY
+// ═══════════════════════════════════════════════════════
+function editSession(id) {
+  const s = sessions.find(s => s.id === id);
+  if(!s) return;
+  editingSessionId = id;
+  currentTplKey = s.template || '_edit_';
+  activeExIds = Object.keys(s.exercises || {});
+
+  stopTimer();
+  document.getElementById('log-title').textContent = (s.templateName||'Workout') + ' ✏️';
+  document.getElementById('log-date').value = s.date || '';
+  document.getElementById('log-week').value = s.week || '';
+  document.getElementById('log-feel').value = s.feel || '';
+
+  // Build cards with saved values
+  buildExerciseCardsForEdit(s);
+  updateProgress();
+  showPage('log');
+}
+
+function buildExerciseCardsForEdit(session) {
+  const el = document.getElementById('ex-list'); el.innerHTML = '';
+
+  // Try to group by template sections if possible, otherwise flat
+  let sections = [];
+  const tpl = TEMPLATES.find(t => t.key === session.template);
+  if(tpl && !session.template.startsWith('_custom_')) {
+    sections = tpl.sections.map(s => ({
+      name: s.name,
+      exIds: s.exIds.filter(id => activeExIds.includes(id))
+    })).filter(s => s.exIds.length);
+    // Add any exercises not in template sections
+    const inSections = new Set(sections.flatMap(s => s.exIds));
+    const extra = activeExIds.filter(id => !inSections.has(id));
+    if(extra.length) sections.push({ name: 'Other', exIds: extra });
+  } else {
+    sections = [{ name: 'Exercises', exIds: activeExIds }];
+  }
+
+  sections.forEach(sec => {
+    el.innerHTML += `<div class="slabel">${sec.name}</div>`;
+    sec.exIds.forEach(id => {
+      const ex = LIB[id];
+      const savedEx = session.exercises[id];
+      if(!ex && !savedEx) return;
+      const exName = ex ? ex.name : (savedEx ? savedEx.name : id);
+      const exSets = ex ? ex.sets : (savedEx && savedEx.sets ? savedEx.sets.length : 3);
+      const exReps = ex ? ex.reps : '—';
+      const exRest = ex ? ex.rest : '60s';
+      const exTip = ex ? ex.tip : '';
+      const exBadges = ex ? ex.b : [];
+      const isFav = favourites.has(id);
+      const savedSets = savedEx ? savedEx.sets || [] : [];
+
+      let rows = '';
+      for(let i = 1; i <= exSets; i++) {
+        const ss = savedSets[i-1];
+        const kg = ss ? ss.kg : '';
+        const reps = ss ? ss.reps : '';
+        const rpe = ss ? ss.rpe : '';
+        const done = ss ? ss.done : false;
+        rows += `<div class="sr">
+          <span class="sn">${i}</span>
+          <input type="number" placeholder="kg" step="2.5" id="kg-${id}-${i}" value="${kg}" onchange="updateProgress()" onfocus="this.select()">
+          <input type="number" placeholder="reps" id="rp-${id}-${i}" value="${reps}" onchange="updateProgress()" onfocus="this.select()">
+          <input type="number" placeholder="RPE" min="1" max="10" id="rpe-${id}-${i}" value="${rpe}" onfocus="this.select()">
+          <button class="db ${done?'chk':''}" onclick="toggleDone(this)" id="db-${id}-${i}">${done?'✓':'○'}</button>
+        </div>`;
+      }
+      el.innerHTML += `
+        <div class="ecard">
+          <div class="ech" onclick="toggleEx('${id}')">
+            <div style="flex:1">
+              <div class="ecn">${exName}${badgeHtml(exBadges)}</div>
+              <div class="ecm">${exSets} sets · ${exReps} · ${exRest} rest</div>
+            </div>
+            <button class="fav-btn ${isFav?'starred':''}" onclick="event.stopPropagation();toggleFav('${id}',this)" title="Favourite">${isFav?'★':'☆'}</button>
+            <div class="chev" id="chev-${id}">▼</div>
+          </div>
+          <div class="ecb open" id="ecb-${id}">
+            ${exTip?`<div class="etip">${exTip}</div>`:''}
+            <div class="sh"><span>#</span><span>KG</span><span>REPS</span><span>RPE</span><span>✓</span></div>
+            ${rows}
+            <div class="rpill">⏱ ${exRest} rest between sets</div>
+            <textarea class="enotes" id="nt-${id}" placeholder="Notes...">${savedEx && savedEx.notes ? savedEx.notes : ''}</textarea>
+          </div>
+        </div>`;
+    });
+  });
+}
+
 function startLogging() {
   if(!activeExIds.length){alert('Add at least one exercise!');return;}
+  editingSessionId = null;
   stopTimer();
   let tplName;
   if(currentTplKey.startsWith('_custom_')){const idx=parseInt(currentTplKey.replace('_custom_',''));tplName=customWorkouts[idx].name;}
@@ -1085,24 +1180,46 @@ function updateProgress(){
 function saveSession(){
   stopTimer();
   let tplName;
-  if(currentTplKey.startsWith('_custom_')){const idx=parseInt(currentTplKey.replace('_custom_',''));tplName=customWorkouts[idx].name;}
+  if(editingSessionId) {
+    const orig = sessions.find(s => s.id === editingSessionId);
+    tplName = orig ? orig.templateName : 'Workout';
+  } else if(currentTplKey.startsWith('_custom_')){const idx=parseInt(currentTplKey.replace('_custom_',''));tplName=customWorkouts[idx].name;}
   else{tplName=TEMPLATES.find(t=>t.key===currentTplKey).name;}
-  const session={id:Date.now(),template:currentTplKey,templateName:tplName,date:document.getElementById('log-date').value,week:document.getElementById('log-week').value,feel:document.getElementById('log-feel').value,exercises:{}};
+
+  const exercises = {};
   activeExIds.forEach(id=>{
-    const ex=LIB[id]; if(!ex) return;
+    const ex=LIB[id];
+    const numSets = ex ? ex.sets : document.querySelectorAll(`[id^="kg-${id}-"]`).length;
     const sets=[];
-    for(let i=1;i<=ex.sets;i++){sets.push({set:i,kg:document.getElementById(`kg-${id}-${i}`)?.value||'',reps:document.getElementById(`rp-${id}-${i}`)?.value||'',rpe:document.getElementById(`rpe-${id}-${i}`)?.value||'',done:document.getElementById(`db-${id}-${i}`)?.classList.contains('chk')||false});}
-    session.exercises[id]={name:ex.name,sets};
+    for(let i=1;i<=numSets;i++){sets.push({set:i,kg:document.getElementById(`kg-${id}-${i}`)?.value||'',reps:document.getElementById(`rp-${id}-${i}`)?.value||'',rpe:document.getElementById(`rpe-${id}-${i}`)?.value||'',done:document.getElementById(`db-${id}-${i}`)?.classList.contains('chk')||false});}
+    exercises[id]={name:ex?ex.name:id,sets};
     const nt=document.getElementById(`nt-${id}`);
-    if(nt?.value) session.exercises[id].notes=nt.value;
+    if(nt?.value) exercises[id].notes=nt.value;
   });
-  sessions.push(session); save(); fillChartSelect(); updateStats();
+
+  if(editingSessionId) {
+    // Update existing session in place
+    const idx = sessions.findIndex(s => s.id === editingSessionId);
+    if(idx > -1) {
+      sessions[idx].date = document.getElementById('log-date').value;
+      sessions[idx].week = document.getElementById('log-week').value;
+      sessions[idx].feel = document.getElementById('log-feel').value;
+      sessions[idx].exercises = exercises;
+    }
+    editingSessionId = null;
+  } else {
+    // New session
+    const session={id:Date.now(),template:currentTplKey,templateName:tplName,date:document.getElementById('log-date').value,week:document.getElementById('log-week').value,feel:document.getElementById('log-feel').value,exercises};
+    sessions.push(session);
+  }
+
+  save(); fillChartSelect(); updateStats();
   const st=document.getElementById('save-status');
   st.textContent='✓ Session saved!'; st.style.display='block';
   setTimeout(()=>{st.style.display='none';showPage('history',document.querySelectorAll('.nav-btn')[2]);},1500);
 }
 
-function cancelSession(){if(confirm('Cancel this session?')){stopTimer();showPage('home');}}
+function cancelSession(){if(confirm('Cancel this session?')){stopTimer();editingSessionId=null;showPage('home');}}
 
 // ═══════════════════════════════════════════════════════
 // SWIM
@@ -1176,7 +1293,7 @@ function renderHistory(){
   hl.innerHTML=allSessions.map(s=>{
     if(s.type==='swim'){return `<div class="hcard" style="border-color:rgba(0,200,255,.2)"><div class="hch" onclick="this.nextElementSibling.classList.toggle('open')"><div><div class="hct" style="color:var(--swim)">🏊 Swim — ${s.totalDistance}m</div><div class="hcd">Week ${s.week} · ${fmtDate(s.date)} · ${s.crawlRatio}% crawl</div></div><div style="color:var(--muted);font-size:.75rem">▼</div></div><div class="hcb"><div class="swim-stats-row" style="margin-top:8px"><div class="swim-stat"><div class="swim-stat-val">${s.crawl.distance}m</div><div class="swim-stat-lbl">Crawl</div></div><div class="swim-stat"><div class="swim-stat-val">${s.breast.distance}m</div><div class="swim-stat-lbl">Breast</div></div><div class="swim-stat"><div class="swim-stat-val">${s.crawl.pace||'—'}</div><div class="swim-stat-lbl">Pace</div></div><div class="swim-stat"><div class="swim-stat-val">${s.crawl.swolf||'—'}</div><div class="swim-stat-lbl">SWOLF</div></div></div><button class="btn btn-d btn-sm" style="margin-top:10px" onclick="delSwimSession(${s.id})">Delete</button></div></div>`;}
     const exs=Object.entries(s.exercises||{}).map(([id,ex])=>{const done=(ex.sets||[]).filter(st=>st.done&&st.kg);if(!done.length)return '';return `<div class="exsum"><div class="exsn">${ex.name}</div><div class="setchips">${done.map(st=>`<span class="chip">${st.kg}kg×${st.reps}</span>`).join('')}</div>${ex.notes?`<div style="font-size:.65rem;color:var(--muted);margin-top:3px;font-style:italic">${ex.notes}</div>`:''}</div>`;}).join('');
-    return `<div class="hcard"><div class="hch" onclick="this.nextElementSibling.classList.toggle('open')"><div><div class="hct">${s.templateName}</div><div class="hcd">Week ${s.week} · ${fmtDate(s.date)}${s.feel?' · '+s.feel:''}</div></div><div style="color:var(--muted);font-size:.75rem">▼</div></div><div class="hcb">${exs||'<div style="font-size:.73rem;color:var(--muted);padding-top:8px">No sets logged</div>'}<button class="btn btn-d btn-sm" style="margin-top:10px" onclick="delSession(${s.id})">Delete</button></div></div>`;
+    return `<div class="hcard"><div class="hch" onclick="this.nextElementSibling.classList.toggle('open')"><div><div class="hct">${s.templateName}</div><div class="hcd">Week ${s.week} · ${fmtDate(s.date)}${s.feel?' · '+s.feel:''}</div></div><div style="color:var(--muted);font-size:.75rem">▼</div></div><div class="hcb">${exs||'<div style="font-size:.73rem;color:var(--muted);padding-top:8px">No sets logged</div>'}<div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-sm" onclick="editSession(${s.id})">✏️ Edit</button><button class="btn btn-d btn-sm" onclick="delSession(${s.id})">Delete</button></div></div></div>`;
   }).join('');
 }
 
