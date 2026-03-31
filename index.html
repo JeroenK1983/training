@@ -715,6 +715,10 @@ const LIB = {
   tricep:   { name:'Rope Triceps Pushdown', sets:3, reps:'12–15', rest:'60s', tip:'High pulley, rope. Elbows pinned. Flare rope outward. Neutral wrist.', b:['c','e'] },
   bicep:    { name:'Cable Bicep Curl (D-handle)', sets:3, reps:'12', rest:'60s', tip:'Low pulley, D-handle = neutral grip. No barbell curl — aggravates epicondylitis.', b:['c','e'] },
   hammer:   { name:'Cable Hammer Curl (rope)', sets:3, reps:'12', rest:'60s', tip:'Low pulley, rope. Palms facing each other throughout. Great for brachialis.', b:['c','e'] },
+  // FUNCTIONAL
+  boxjump:  { name:'Box Jumps', sets:3, reps:'8–10', rest:'90s', tip:'Soft landing, step down to save joints. Full hip extension at top. Start with a height you can land quietly.', b:['bw'] },
+  burpee:   { name:'Burpees', sets:3, reps:'10', rest:'60s', tip:'Chest to floor, explosive up. Scale by stepping back instead of jumping if needed. Control the descent.', b:['bw'] },
+  farmcarry:{ name:'Farmers Carry', sets:3, reps:'40m', rest:'90s', tip:'Heavy dumbbells or kettlebells. Tall posture, shoulders packed, core braced. Walk steady — grip strength + full body stability.', b:[] },
 };
 
 const TEMPLATES = [
@@ -934,6 +938,7 @@ function renderModalExList(selectedIds) {
     { name:'Legs', ids:['rdl','hipthrust','goblet','stepup','pullthr','legraise'] },
     { name:'Core', ids:['deadbug','pallof','crunch','plank','sideplank','oblique'] },
     { name:'Arms', ids:['tricep','bicep','hammer'] },
+    { name:'Functional', ids:['boxjump','burpee','farmcarry'] },
   ];
   container.innerHTML = categories.filter(c=>c.ids.length>0).map(cat=>`
     <div style="font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin:10px 0 5px">${cat.name}</div>
@@ -1116,6 +1121,7 @@ function openAddExercise() {
     { name:'Legs', ids:['rdl','hipthrust','goblet','stepup','pullthr','legraise'].filter(id=>!alreadyIn.has(id)) },
     { name:'Core', ids:['deadbug','pallof','crunch','plank','sideplank','oblique'].filter(id=>!alreadyIn.has(id)) },
     { name:'Arms', ids:['tricep','bicep','hammer'].filter(id=>!alreadyIn.has(id)) },
+    { name:'Functional', ids:['boxjump','burpee','farmcarry'].filter(id=>!alreadyIn.has(id)) },
   ];
 
   container.innerHTML = categories.filter(c=>c.ids.length>0).map(cat=>`
