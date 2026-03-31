@@ -699,25 +699,25 @@ const LIB = {
   pulldown: { name:'Lat Pulldown', sets:4, reps:'10–12', rest:'90s', tip:'Wide grip, chest up, pull to upper chest. Squeeze lats at bottom.', b:['c'] },
   row:      { name:'Cable Row (D-handle)', sets:4, reps:'10–12', rest:'90s', tip:'Neutral grip. Sit tall. Pull to lower chest. Squeeze shoulder blades.', b:['c','e'] },
   singlerow:{ name:'Single Arm Cable Row', sets:3, reps:'12/side', rest:'60s', tip:'D-handle, low pulley. Elbow close to body. Rotate slightly at end.', b:['c','e'] },
-  pullup:   { name:'Pull-ups (Multi-grip bar)', sets:3, reps:'Max', rest:'90s', tip:'Full hang to chin over bar. Neutral or wide grip. Control the descent.', b:[] },
+  pullup:   { name:'Pull-ups (Multi-grip bar)', sets:3, reps:'Max', rest:'90s', tip:'Full hang to chin over bar. Neutral or wide grip. Control the descent.', b:[], nokg:true },
   rdl:      { name:'Romanian Deadlift', sets:4, reps:'8–10', rest:'90s', tip:'Hip hinge — Attia #1. Soft knees, push hips back, bar close to legs. Control descent.', b:[] },
   hipthrust:{ name:'Hip Thrust (bench + bar)', sets:4, reps:'10–12', rest:'90s', tip:'Upper back on bench, bar over hips. Drive through heels. Squeeze glutes at top.', b:[] },
   goblet:   { name:'Goblet Squat (cable)', sets:3, reps:'12', rest:'60s', tip:'Low pulley, rope. Hold at chest. Sit deep, chest tall. Knees track over toes.', b:['c'] },
   stepup:   { name:'Single-Leg Step-Up + Slow Eccentric', sets:3, reps:'10/side', rest:'60s', tip:'3 sec controlled descent. Attia: eccentric control = longevity.', b:['bw'] },
   pullthr:  { name:'Cable Pull-Through', sets:3, reps:'12', rest:'60s', tip:'Low pulley, rope between legs. Hip hinge. Squeeze glutes at top.', b:['c'] },
-  legraise: { name:'Leg Raise (dip module)', sets:3, reps:'12–15', rest:'60s', tip:'Hang from dip module. Raise legs straight or bent. Control the descent.', b:['bw'] },
+  legraise: { name:'Leg Raise (dip module)', sets:3, reps:'12–15', rest:'60s', tip:'Hang from dip module. Raise legs straight or bent. Control the descent.', b:['bw'], nokg:true },
   deadbug:  { name:'Dead Bug (Attia variation)', sets:3, reps:'6 slow', rest:'60s', tip:'Both arms AND legs extend simultaneously. Lower back glued to floor. Hold 3 sec.', b:['bw'] },
   pallof:   { name:'Pallof Press', sets:3, reps:'12/side', rest:'60s', tip:'Anti-rotation. Stand perpendicular to cable. Press straight out, resist rotation.', b:['c'] },
   crunch:   { name:'Cable Crunch', sets:3, reps:'15', rest:'60s', tip:'Kneel facing cable. Crunch the spine — not just pull with arms.', b:['c'] },
-  plank:    { name:'Plank Hold', sets:3, reps:'45–60s', rest:'45s', tip:'Elbows under shoulders. Squeeze glutes. No hip sag. Breathe steadily.', b:['bw'] },
-  sideplank:{ name:'Side Plank', sets:3, reps:'30–45s/side', rest:'45s', tip:'Elbow under shoulder. Hips stacked. Anti-lateral flexion.', b:['bw'] },
+  plank:    { name:'Plank Hold', sets:3, reps:'3', rest:'45s', tip:'Elbows under shoulders. Squeeze glutes. No hip sag. Breathe steadily.', b:['bw'], nokg:true, timed:true },
+  sideplank:{ name:'Side Plank', sets:3, reps:'3/side', rest:'45s', tip:'Elbow under shoulder. Hips stacked. Anti-lateral flexion.', b:['bw'], nokg:true, timed:true },
   oblique:  { name:'Standing DB Oblique Crunch', sets:3, reps:'12/side', rest:'60s', tip:'Stand holding dumbbell, side-bend toward holding side, then crunch oblique on opposite side. Control throughout.', b:[] },
   tricep:   { name:'Rope Triceps Pushdown', sets:3, reps:'12–15', rest:'60s', tip:'High pulley, rope. Elbows pinned. Flare rope outward. Neutral wrist.', b:['c','e'] },
   bicep:    { name:'Cable Bicep Curl (D-handle)', sets:3, reps:'12', rest:'60s', tip:'Low pulley, D-handle = neutral grip. No barbell curl — aggravates epicondylitis.', b:['c','e'] },
   hammer:   { name:'Cable Hammer Curl (rope)', sets:3, reps:'12', rest:'60s', tip:'Low pulley, rope. Palms facing each other throughout. Great for brachialis.', b:['c','e'] },
   // FUNCTIONAL
-  boxjump:  { name:'Box Jumps', sets:3, reps:'8–10', rest:'90s', tip:'Soft landing, step down to save joints. Full hip extension at top. Start with a height you can land quietly.', b:['bw'] },
-  burpee:   { name:'Burpees', sets:3, reps:'10', rest:'60s', tip:'Chest to floor, explosive up. Scale by stepping back instead of jumping if needed. Control the descent.', b:['bw'] },
+  boxjump:  { name:'Box Jumps', sets:3, reps:'8–10', rest:'90s', tip:'Soft landing, step down to save joints. Full hip extension at top. Start with a height you can land quietly.', b:['bw'], nokg:true },
+  burpee:   { name:'Burpees', sets:3, reps:'10', rest:'60s', tip:'Chest to floor, explosive up. Scale by stepping back instead of jumping if needed. Control the descent.', b:['bw'], nokg:true },
   farmcarry:{ name:'Farmers Carry', sets:3, reps:'40m', rest:'90s', tip:'Heavy dumbbells or kettlebells. Tall posture, shoulders packed, core braced. Walk steady — grip strength + full body stability.', b:[] },
 };
 
@@ -1039,7 +1039,6 @@ function editSession(id) {
 function buildExerciseCardsForEdit(session) {
   const el = document.getElementById('ex-list'); el.innerHTML = '';
 
-  // Try to group by template sections if possible, otherwise flat
   let sections = [];
   const tpl = TEMPLATES.find(t => t.key === session.template);
   if(tpl && !session.template.startsWith('_custom_')) {
@@ -1047,7 +1046,6 @@ function buildExerciseCardsForEdit(session) {
       name: s.name,
       exIds: s.exIds.filter(id => activeExIds.includes(id))
     })).filter(s => s.exIds.length);
-    // Add any exercises not in template sections
     const inSections = new Set(sections.flatMap(s => s.exIds));
     const extra = activeExIds.filter(id => !inSections.has(id));
     if(extra.length) sections.push({ name: 'Other', exIds: extra });
@@ -1067,6 +1065,7 @@ function buildExerciseCardsForEdit(session) {
       const exRest = ex ? ex.rest : '60s';
       const exTip = ex ? ex.tip : '';
       const exBadges = ex ? ex.b : [];
+      const exObj = ex || { nokg:false, timed:false };
       const isFav = favourites.has(id);
       const savedSets = savedEx ? savedEx.sets || [] : [];
 
@@ -1077,13 +1076,7 @@ function buildExerciseCardsForEdit(session) {
         const reps = ss ? ss.reps : '';
         const rpe = ss ? ss.rpe : '';
         const done = ss ? ss.done : false;
-        rows += `<div class="sr">
-          <span class="sn">${i}</span>
-          <input type="number" placeholder="kg" step="2.5" id="kg-${id}-${i}" value="${kg}" onchange="updateProgress()" onfocus="this.select()">
-          <input type="number" placeholder="reps" id="rp-${id}-${i}" value="${reps}" onchange="updateProgress()" onfocus="this.select()">
-          <input type="number" placeholder="RPE" min="1" max="10" id="rpe-${id}-${i}" value="${rpe}" onfocus="this.select()">
-          <button class="db ${done?'chk':''}" onclick="toggleDone(this)" id="db-${id}-${i}">${done?'✓':'○'}</button>
-        </div>`;
+        rows += exSetRow(exObj, id, i, kg, reps, rpe, done, false);
       }
       el.innerHTML += `
         <div class="ecard">
@@ -1097,7 +1090,7 @@ function buildExerciseCardsForEdit(session) {
           </div>
           <div class="ecb open" id="ecb-${id}">
             ${exTip?`<div class="etip">${exTip}</div>`:''}
-            <div class="sh"><span>#</span><span>KG</span><span>REPS</span><span>RPE</span><span>✓</span></div>
+            ${exSetHeader(exObj)}
             ${rows}
             <div class="rpill">⏱ ${exRest} rest between sets</div>
             <textarea class="enotes" id="nt-${id}" placeholder="Notes...">${savedEx && savedEx.notes ? savedEx.notes : ''}</textarea>
@@ -1178,13 +1171,8 @@ function appendExerciseCard(id) {
     const prevKg = prev ? prev.kg : '';
     const prevReps = prev ? prev.reps : '';
     const prevRpe = prev ? prev.rpe : '';
-    rows += `<div class="sr">
-      <span class="sn">${i}</span>
-      <input type="number" placeholder="kg" step="2.5" id="kg-${id}-${i}" value="${prevKg}" ${prevKg?'class="prefilled"':''} onchange="updateProgress();this.classList.remove('prefilled')" onfocus="this.select()">
-      <input type="number" placeholder="reps" id="rp-${id}-${i}" value="${prevReps}" ${prevReps?'class="prefilled"':''} onchange="updateProgress();this.classList.remove('prefilled')" onfocus="this.select()">
-      <input type="number" placeholder="RPE" min="1" max="10" id="rpe-${id}-${i}" value="${prevRpe}" ${prevRpe?'class="prefilled"':''} onchange="this.classList.remove('prefilled')" onfocus="this.select()">
-      <button class="db" onclick="toggleDone(this)" id="db-${id}-${i}">○</button>
-    </div>`;
+    const hasPrefill = !!(prevKg||prevReps||prevRpe);
+    rows += exSetRow(ex, id, i, prevKg, prevReps, prevRpe, false, hasPrefill);
   }
 
   const cardHtml = `
@@ -1201,7 +1189,7 @@ function appendExerciseCard(id) {
       <div class="ecb open" id="ecb-${id}">
         <div class="etip">${ex.tip}</div>
         ${pb?`<div class="pbest">📊 ${pb}</div>`:''}
-        <div class="sh"><span>#</span><span>KG</span><span>REPS</span><span>RPE</span><span>✓</span></div>
+        ${exSetHeader(ex)}
         ${rows}
         <div class="rpill">⏱ ${ex.rest} rest between sets</div>
         <textarea class="enotes" id="nt-${id}" placeholder="Notes..."></textarea>
@@ -1227,13 +1215,63 @@ function startLogging() {
 
 function badgeHtml(b=[]) { return b.map(x=>{ if(x==='c') return '<span class="bdg bc">Cable</span>'; if(x==='e') return '<span class="bdg be">Elbow ✓</span>'; if(x==='bw') return '<span class="bdg bb">BW</span>'; return ''; }).join(''); }
 
+function exSetHeader(ex) {
+  if(ex.nokg && ex.timed) return `<div class="sh" style="grid-template-columns:28px 1fr 1fr 1fr 34px"><span>#</span><span>SEC</span><span>REPS</span><span>RPE</span><span>✓</span></div>`;
+  if(ex.nokg) return `<div class="sh" style="grid-template-columns:28px 1fr 1fr 34px"><span>#</span><span>REPS</span><span>RPE</span><span>✓</span></div>`;
+  return `<div class="sh"><span>#</span><span>KG</span><span>REPS</span><span>RPE</span><span>✓</span></div>`;
+}
+
+function exSetRow(ex, id, i, valKg, valReps, valRpe, done, prefilled) {
+  const pf = prefilled ? 'class="prefilled"' : '';
+  const pfClear = `onchange="updateProgress();this.classList.remove('prefilled')" onfocus="this.select()"`;
+  const pfClearNp = `onchange="this.classList.remove('prefilled')" onfocus="this.select()"`;
+  const doneClass = done ? ' chk' : '';
+  const doneTxt = done ? '✓' : '○';
+
+  if(ex.nokg && ex.timed) {
+    return `<div class="sr" style="grid-template-columns:28px 1fr 1fr 1fr 34px">
+      <span class="sn">${i}</span>
+      <input type="number" placeholder="sec" id="kg-${id}-${i}" value="${valKg}" ${pf} ${pfClear}>
+      <input type="number" placeholder="reps" id="rp-${id}-${i}" value="${valReps}" ${pf} ${pfClear}>
+      <input type="number" placeholder="RPE" min="1" max="10" id="rpe-${id}-${i}" value="${valRpe}" ${pf} ${pfClearNp}>
+      <button class="db${doneClass}" onclick="toggleDone(this)" id="db-${id}-${i}">${doneTxt}</button>
+    </div>`;
+  }
+  if(ex.nokg) {
+    return `<div class="sr" style="grid-template-columns:28px 1fr 1fr 34px">
+      <span class="sn">${i}</span>
+      <input type="number" placeholder="reps" id="rp-${id}-${i}" value="${valReps}" ${pf} ${pfClear}>
+      <input type="number" placeholder="RPE" min="1" max="10" id="rpe-${id}-${i}" value="${valRpe}" ${pf} ${pfClearNp}>
+      <button class="db${doneClass}" onclick="toggleDone(this)" id="db-${id}-${i}">${doneTxt}</button>
+    </div>`;
+  }
+  return `<div class="sr">
+    <span class="sn">${i}</span>
+    <input type="number" placeholder="kg" step="2.5" id="kg-${id}-${i}" value="${valKg}" ${pf} ${pfClear}>
+    <input type="number" placeholder="reps" id="rp-${id}-${i}" value="${valReps}" ${pf} ${pfClear}>
+    <input type="number" placeholder="RPE" min="1" max="10" id="rpe-${id}-${i}" value="${valRpe}" ${pf} ${pfClearNp}>
+    <button class="db${doneClass}" onclick="toggleDone(this)" id="db-${id}-${i}">${doneTxt}</button>
+  </div>`;
+}
+
 function prevBest(exId) {
+  const ex = LIB[exId];
   const prev=sessions.filter(s=>s.exercises&&s.exercises[exId]);
   if(!prev.length) return null;
-  const last=prev[prev.length-1]; const ex=last.exercises[exId];
-  const done=(ex?.sets||[]).filter(s=>s.done&&s.kg);
+  const last=prev[prev.length-1]; const exData=last.exercises[exId];
+  const done=(exData?.sets||[]).filter(s=>s.done&&(s.kg||s.reps));
   if(!done.length) return null;
-  const top=done.reduce((a,b)=>(parseFloat(b.kg)||0)>(parseFloat(a.kg)||0)?b:a);
+  if(ex && ex.nokg && ex.timed) {
+    const top=done.reduce((a,b)=>(parseFloat(b.kg)||0)>(parseFloat(a.kg)||0)?b:a);
+    return top.kg ? `Last: ${top.kg}s × ${top.reps} reps` : null;
+  }
+  if(ex && ex.nokg) {
+    const top=done.reduce((a,b)=>(parseFloat(b.reps)||0)>(parseFloat(a.reps)||0)?b:a);
+    return top.reps ? `Last: ${top.reps} reps${top.rpe?' · RPE '+top.rpe:''}` : null;
+  }
+  const withKg = done.filter(s=>s.kg);
+  if(!withKg.length) return null;
+  const top=withKg.reduce((a,b)=>(parseFloat(b.kg)||0)>(parseFloat(a.kg)||0)?b:a);
   return `Last: ${top.kg}kg × ${top.reps}${top.rpe?' · RPE '+top.rpe:''}`;
 }
 
@@ -1256,13 +1294,8 @@ function buildExerciseCards() {
         const prevKg=prev?prev.kg:'';
         const prevReps=prev?prev.reps:'';
         const prevRpe=prev?prev.rpe:'';
-        rows+=`<div class="sr">
-          <span class="sn">${i}</span>
-          <input type="number" placeholder="kg" step="2.5" id="kg-${id}-${i}" value="${prevKg}" ${prevKg?'class="prefilled"':''} onchange="updateProgress();this.classList.remove('prefilled')" onfocus="this.select()">
-          <input type="number" placeholder="reps" id="rp-${id}-${i}" value="${prevReps}" ${prevReps?'class="prefilled"':''} onchange="updateProgress();this.classList.remove('prefilled')" onfocus="this.select()">
-          <input type="number" placeholder="RPE" min="1" max="10" id="rpe-${id}-${i}" value="${prevRpe}" ${prevRpe?'class="prefilled"':''} onchange="this.classList.remove('prefilled')" onfocus="this.select()">
-          <button class="db" onclick="toggleDone(this)" id="db-${id}-${i}">○</button>
-        </div>`;
+        const hasPrefill = !!(prevKg||prevReps||prevRpe);
+        rows+=exSetRow(ex, id, i, prevKg, prevReps, prevRpe, false, hasPrefill);
       }
       el.innerHTML+=`
         <div class="ecard">
@@ -1277,7 +1310,7 @@ function buildExerciseCards() {
           <div class="ecb" id="ecb-${id}">
             <div class="etip">${ex.tip}</div>
             ${pb?`<div class="pbest">📊 ${pb}</div>`:''}
-            <div class="sh"><span>#</span><span>KG</span><span>REPS</span><span>RPE</span><span>✓</span></div>
+            ${exSetHeader(ex)}
             ${rows}
             <div class="rpill">⏱ ${ex.rest} rest between sets</div>
             <textarea class="enotes" id="nt-${id}" placeholder="Notes..."></textarea>
@@ -1415,7 +1448,7 @@ function renderHistory(){
   if(!allSessions.length){hl.innerHTML=`<div class="empty"><div class="ei">📋</div><h3>No sessions yet</h3><p>Complete your first workout to see it here.</p></div>`;return;}
   hl.innerHTML=allSessions.map(s=>{
     if(s.type==='swim'){return `<div class="hcard" style="border-color:rgba(0,200,255,.2)"><div class="hch" onclick="this.nextElementSibling.classList.toggle('open')"><div><div class="hct" style="color:var(--swim)">🏊 Swim — ${s.totalDistance}m</div><div class="hcd">Week ${s.week} · ${fmtDate(s.date)} · ${s.crawlRatio}% crawl</div></div><div style="color:var(--muted);font-size:.75rem">▼</div></div><div class="hcb"><div class="swim-stats-row" style="margin-top:8px"><div class="swim-stat"><div class="swim-stat-val">${s.crawl.distance}m</div><div class="swim-stat-lbl">Crawl</div></div><div class="swim-stat"><div class="swim-stat-val">${s.breast.distance}m</div><div class="swim-stat-lbl">Breast</div></div><div class="swim-stat"><div class="swim-stat-val">${s.crawl.pace||'—'}</div><div class="swim-stat-lbl">Pace</div></div><div class="swim-stat"><div class="swim-stat-val">${s.crawl.swolf||'—'}</div><div class="swim-stat-lbl">SWOLF</div></div></div><button class="btn btn-d btn-sm" style="margin-top:10px" onclick="delSwimSession(${s.id})">Delete</button></div></div>`;}
-    const exs=Object.entries(s.exercises||{}).map(([id,ex])=>{const done=(ex.sets||[]).filter(st=>st.done&&st.kg);if(!done.length)return '';return `<div class="exsum"><div class="exsn">${ex.name}</div><div class="setchips">${done.map(st=>`<span class="chip">${st.kg}kg×${st.reps}</span>`).join('')}</div>${ex.notes?`<div style="font-size:.65rem;color:var(--muted);margin-top:3px;font-style:italic">${ex.notes}</div>`:''}</div>`;}).join('');
+    const exs=Object.entries(s.exercises||{}).map(([id,ex])=>{const exDef=LIB[id];const done=(ex.sets||[]).filter(st=>st.done&&(st.kg||st.reps));if(!done.length)return '';return `<div class="exsum"><div class="exsn">${ex.name}</div><div class="setchips">${done.map(st=>{if(exDef&&exDef.nokg&&exDef.timed) return `<span class="chip">${st.kg||0}s × ${st.reps}</span>`;if(exDef&&exDef.nokg) return `<span class="chip">${st.reps} reps</span>`;return `<span class="chip">${st.kg}kg×${st.reps}</span>`;}).join('')}</div>${ex.notes?`<div style="font-size:.65rem;color:var(--muted);margin-top:3px;font-style:italic">${ex.notes}</div>`:''}</div>`;}).join('');
     return `<div class="hcard"><div class="hch" onclick="this.nextElementSibling.classList.toggle('open')"><div><div class="hct">${s.templateName}</div><div class="hcd">Week ${s.week} · ${fmtDate(s.date)}${s.feel?' · '+s.feel:''}</div></div><div style="color:var(--muted);font-size:.75rem">▼</div></div><div class="hcb">${exs||'<div style="font-size:.73rem;color:var(--muted);padding-top:8px">No sets logged</div>'}<div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-sm" onclick="editSession(${s.id})">✏️ Edit</button><button class="btn btn-d btn-sm" onclick="delSession(${s.id})">Delete</button></div></div></div>`;
   }).join('');
 }
