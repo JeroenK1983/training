@@ -144,6 +144,58 @@ body {
 .setup-section { font-family:'Bebas Neue',sans-serif; font-size:.85rem; letter-spacing:2px; color:var(--muted); margin:14px 0 6px; display:flex; align-items:center; gap:8px; }
 .setup-section::after { content:''; flex:1; height:1px; background:var(--border); }
 
+/* REST TIMER */
+.rest-timer {
+  background:var(--s1); border:1px solid var(--border);
+  border-radius:12px; padding:10px 14px;
+  margin-bottom:14px;
+  display:flex; align-items:center; gap:10px;
+}
+.rest-timer-btns {
+  display:flex; gap:6px; flex-shrink:0;
+}
+.timer-btn {
+  background:var(--s2); border:1px solid var(--border);
+  border-radius:8px; color:var(--text);
+  padding:6px 10px;
+  font-family:'DM Mono',monospace;
+  font-size:.72rem; cursor:pointer;
+  transition:all .15s; white-space:nowrap;
+}
+.timer-btn:hover { border-color:var(--accent); color:var(--accent); }
+.timer-btn.active { background:var(--accent); border-color:var(--accent); color:#000; font-weight:600; }
+.timer-display {
+  flex:1; display:flex; align-items:center;
+  gap:10px; min-width:0;
+}
+.timer-countdown {
+  font-family:'DM Mono',monospace;
+  font-size:1.4rem; font-weight:500;
+  color:var(--muted); line-height:1;
+  min-width:48px;
+  transition:color .2s;
+}
+.timer-countdown.running { color:var(--accent); }
+.timer-countdown.done { color:var(--warn); }
+.timer-bar-wrap {
+  flex:1; height:4px; background:var(--s2);
+  border-radius:10px; overflow:hidden;
+  min-width:40px;
+}
+.timer-bar {
+  height:100%; width:0%;
+  background:linear-gradient(90deg,var(--accent),var(--blue));
+  border-radius:10px; transition:width .25s linear;
+}
+.timer-stop {
+  background:none; border:1px solid var(--border);
+  border-radius:50%; width:28px; height:28px;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; color:var(--muted); font-size:.7rem;
+  transition:all .15s; flex-shrink:0;
+}
+.timer-stop:hover { border-color:var(--red); color:var(--red); }
+
 /* WORKOUT HEADER */
 .wh {
   background:var(--s1); border:1px solid var(--border);
@@ -195,6 +247,7 @@ body {
 }
 .sr input:focus { outline:none; border-color:var(--accent); }
 .sr input::placeholder { color:var(--border); }
+.sr input.prefilled { border-color:rgba(77,141,255,.3); }
 .db {
   width:32px; height:32px; border-radius:50%;
   border:1.5px solid var(--border);
@@ -427,6 +480,21 @@ body {
 <!-- LOG -->
 <div class="page" id="pg-log">
   <div class="status" id="save-status"></div>
+
+  <!-- REST TIMER -->
+  <div class="rest-timer" id="rest-timer">
+    <div class="rest-timer-btns">
+      <button class="timer-btn" onclick="startTimer(60)">1:00</button>
+      <button class="timer-btn" onclick="startTimer(90)">1:30</button>
+      <button class="timer-btn" onclick="startTimer(120)">2:00</button>
+    </div>
+    <div class="timer-display">
+      <div class="timer-countdown" id="timer-countdown">—</div>
+      <div class="timer-bar-wrap"><div class="timer-bar" id="timer-bar"></div></div>
+      <button class="timer-stop" id="timer-stop" onclick="stopTimer()" style="display:none">✕</button>
+    </div>
+  </div>
+
   <div class="wh">
     <div class="wt" id="log-title"></div>
     <div class="wmr">
@@ -453,7 +521,6 @@ body {
     <button class="btn btn-sw btn-sm" onclick="openSwimEntry()">+ Log Swim</button>
   </div>
 
-  <!-- Swim stats summary -->
   <div id="swim-summary" style="display:none">
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:18px">
       <div class="sc" style="border-color:rgba(0,200,255,.2)">
@@ -469,7 +536,6 @@ body {
         <div class="sl">Avg Crawl</div>
       </div>
     </div>
-    <!-- Crawl ratio progress chart -->
     <div class="cwrap" style="border-color:rgba(0,200,255,.2);margin-bottom:14px">
       <div class="ctitle" style="color:var(--swim)">Crawl Ratio Progress <span>% per session</span></div>
       <canvas id="chart-crawl" height="140"></canvas>
@@ -594,7 +660,7 @@ body {
   <button class="nav-btn" id="nb-progress" onclick="showPage('progress',this)"><span class="ni">📈</span>Progress</button>
 </nav>
 
-<!-- MODAL: Create/Edit Custom Workout -->
+<!-- MODAL -->
 <div class="modal-overlay" id="modal-custom">
   <div class="modal">
     <div class="modal-title" id="modal-custom-title">New Custom Workout</div>
@@ -610,73 +676,50 @@ body {
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script>
-// ═══════════════════════════════════════════════════════
-// EXERCISE LIBRARY
-// ═══════════════════════════════════════════════════════
 const LIB = {
-  // PUSH
   bench:    { name:'Bench Press (Neutral/Hammer)', sets:4, reps:'8–10', rest:'90s', tip:'Neutral grip or hammer bar. Exhale on press.', b:['e'] },
   incline:  { name:'Incline Bench Press', sets:3, reps:'10', rest:'90s', tip:'Bench at 30–45°. Targets upper chest. Exhale on press.', b:[] },
   fly:      { name:'Cable Chest Fly', sets:3, reps:'12', rest:'60s', tip:'Cables at shoulder height. Slight bend in elbows. Control the return.', b:['c'] },
   ohp:      { name:'Overhead Press', sets:3, reps:'10', rest:'90s', tip:'Brace core every rep. Exhale on press. Squeeze glutes at top.', b:[] },
   facepull: { name:'Cable Face Pull', sets:3, reps:'15', rest:'60s', tip:'Rope at eye level. Pull to face, elbows high. Shoulder health — Attia favourite.', b:['c'] },
-  // PULL
   pulldown: { name:'Lat Pulldown', sets:4, reps:'10–12', rest:'90s', tip:'Wide grip, chest up, pull to upper chest. Squeeze lats at bottom.', b:['c'] },
   row:      { name:'Cable Row (D-handle)', sets:4, reps:'10–12', rest:'90s', tip:'Neutral grip. Sit tall. Pull to lower chest. Squeeze shoulder blades.', b:['c','e'] },
   singlerow:{ name:'Single Arm Cable Row', sets:3, reps:'12/side', rest:'60s', tip:'D-handle, low pulley. Elbow close to body. Rotate slightly at end.', b:['c','e'] },
   pullup:   { name:'Pull-ups (Multi-grip bar)', sets:3, reps:'Max', rest:'90s', tip:'Full hang to chin over bar. Neutral or wide grip. Control the descent.', b:[] },
-  // LEGS
   rdl:      { name:'Romanian Deadlift', sets:4, reps:'8–10', rest:'90s', tip:'Hip hinge — Attia #1. Soft knees, push hips back, bar close to legs. Control descent.', b:[] },
   hipthrust:{ name:'Hip Thrust (bench + bar)', sets:4, reps:'10–12', rest:'90s', tip:'Upper back on bench, bar over hips. Drive through heels. Squeeze glutes at top.', b:[] },
   goblet:   { name:'Goblet Squat (cable)', sets:3, reps:'12', rest:'60s', tip:'Low pulley, rope. Hold at chest. Sit deep, chest tall. Knees track over toes.', b:['c'] },
   stepup:   { name:'Single-Leg Step-Up + Slow Eccentric', sets:3, reps:'10/side', rest:'60s', tip:'3 sec controlled descent. Attia: eccentric control = longevity.', b:['bw'] },
   pullthr:  { name:'Cable Pull-Through', sets:3, reps:'12', rest:'60s', tip:'Low pulley, rope between legs. Hip hinge. Squeeze glutes at top.', b:['c'] },
   legraise: { name:'Leg Raise (dip module)', sets:3, reps:'12–15', rest:'60s', tip:'Hang from dip module. Raise legs straight or bent. Control the descent.', b:['bw'] },
-  // CORE
   deadbug:  { name:'Dead Bug (Attia variation)', sets:3, reps:'6 slow', rest:'60s', tip:'Both arms AND legs extend simultaneously. Lower back glued to floor. Hold 3 sec.', b:['bw'] },
   pallof:   { name:'Pallof Press', sets:3, reps:'12/side', rest:'60s', tip:'Anti-rotation. Stand perpendicular to cable. Press straight out, resist rotation.', b:['c'] },
   crunch:   { name:'Cable Crunch', sets:3, reps:'15', rest:'60s', tip:'Kneel facing cable. Crunch the spine — not just pull with arms.', b:['c'] },
   plank:    { name:'Plank Hold', sets:3, reps:'45–60s', rest:'45s', tip:'Elbows under shoulders. Squeeze glutes. No hip sag. Breathe steadily.', b:['bw'] },
   sideplank:{ name:'Side Plank', sets:3, reps:'30–45s/side', rest:'45s', tip:'Elbow under shoulder. Hips stacked. Anti-lateral flexion.', b:['bw'] },
   oblique:  { name:'Standing DB Oblique Crunch', sets:3, reps:'12/side', rest:'60s', tip:'Stand holding dumbbell, side-bend toward holding side, then crunch oblique on opposite side. Control throughout.', b:[] },
-  // ARMS
   tricep:   { name:'Rope Triceps Pushdown', sets:3, reps:'12–15', rest:'60s', tip:'High pulley, rope. Elbows pinned. Flare rope outward. Neutral wrist.', b:['c','e'] },
   bicep:    { name:'Cable Bicep Curl (D-handle)', sets:3, reps:'12', rest:'60s', tip:'Low pulley, D-handle = neutral grip. No barbell curl — aggravates epicondylitis.', b:['c','e'] },
   hammer:   { name:'Cable Hammer Curl (rope)', sets:3, reps:'12', rest:'60s', tip:'Low pulley, rope. Palms facing each other throughout. Great for brachialis.', b:['c','e'] },
 };
 
-// ═══════════════════════════════════════════════════════
-// TEMPLATES
-// ═══════════════════════════════════════════════════════
 const TEMPLATES = [
-  {
-    key:'upper', name:'Trunk / Upper', icon:'🏋️',
-    sections:[
-      { name:'Push', exIds:['bench','incline','fly','ohp','facepull'] },
-      { name:'Pull', exIds:['pulldown','row','singlerow','pullup'] },
-      { name:'Arms — Elbow Safe', exIds:['tricep','bicep','hammer'] },
-      { name:'Core', exIds:['pallof','crunch','deadbug','plank','sideplank','oblique'] },
-    ]
-  },
-  {
-    key:'legs', name:'Legs', icon:'🦵',
-    sections:[
-      { name:'Hip Hinge', exIds:['rdl','hipthrust','pullthr'] },
-      { name:'Single Leg', exIds:['stepup','goblet'] },
-      { name:'Core', exIds:['legraise','deadbug','pallof','plank'] },
-    ]
-  },
-  {
-    key:'core', name:'Core / Stability', icon:'🎯',
-    sections:[
-      { name:'Attia Core Protocol', exIds:['deadbug','pallof','plank','sideplank','crunch','legraise','oblique'] },
-    ]
-  },
+  { key:'upper', name:'Trunk / Upper', icon:'🏋️', sections:[
+    { name:'Push', exIds:['bench','incline','fly','ohp','facepull'] },
+    { name:'Pull', exIds:['pulldown','row','singlerow','pullup'] },
+    { name:'Arms — Elbow Safe', exIds:['tricep','bicep','hammer'] },
+    { name:'Core', exIds:['pallof','crunch','deadbug','plank','sideplank','oblique'] },
+  ]},
+  { key:'legs', name:'Legs', icon:'🦵', sections:[
+    { name:'Hip Hinge', exIds:['rdl','hipthrust','pullthr'] },
+    { name:'Single Leg', exIds:['stepup','goblet'] },
+    { name:'Core', exIds:['legraise','deadbug','pallof','plank'] },
+  ]},
+  { key:'core', name:'Core / Stability', icon:'🎯', sections:[
+    { name:'Attia Core Protocol', exIds:['deadbug','pallof','plank','sideplank','crunch','legraise','oblique'] },
+  ]},
 ];
 
-// ═══════════════════════════════════════════════════════
-// STATE
-// ═══════════════════════════════════════════════════════
 const KEY = 'jeroen_v4';
 let sessions = [];
 let swimSessions = [];
@@ -687,10 +730,10 @@ let activeExIds = [];
 let editingCustomIdx = -1;
 let chartInst = {};
 let swimChartInst = null;
+let timerInterval = null;
+let timerRemaining = 0;
+let timerTotal = 0;
 
-// ═══════════════════════════════════════════════════════
-// STORAGE
-// ═══════════════════════════════════════════════════════
 function load() {
   try {
     const r = localStorage.getItem(KEY);
@@ -701,20 +744,79 @@ function load() {
       favourites = new Set(data.favourites || []);
       customWorkouts = data.customWorkouts || [];
     }
-  } catch(e) {
-    sessions=[]; swimSessions=[]; favourites=new Set(); customWorkouts=[];
-  }
+  } catch(e) { sessions=[]; swimSessions=[]; favourites=new Set(); customWorkouts=[]; }
 }
 
 function save() {
-  try {
-    localStorage.setItem(KEY, JSON.stringify({
-      sessions,
-      swimSessions,
-      favourites: [...favourites],
-      customWorkouts
-    }));
-  } catch(e) {}
+  try { localStorage.setItem(KEY, JSON.stringify({ sessions, swimSessions, favourites:[...favourites], customWorkouts })); } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════════════
+// REST TIMER
+// ═══════════════════════════════════════════════════════
+function startTimer(secs) {
+  if(timerInterval) clearInterval(timerInterval);
+  timerTotal = secs;
+  timerRemaining = secs;
+
+  document.querySelectorAll('.timer-btn').forEach(b => b.classList.remove('active'));
+  const btns = document.querySelectorAll('.timer-btn');
+  if(secs===60) btns[0]?.classList.add('active');
+  else if(secs===90) btns[1]?.classList.add('active');
+  else if(secs===120) btns[2]?.classList.add('active');
+
+  const cd = document.getElementById('timer-countdown');
+  const bar = document.getElementById('timer-bar');
+  const stopBtn = document.getElementById('timer-stop');
+  cd.className = 'timer-countdown running';
+  stopBtn.style.display = 'flex';
+  updateTimerDisplay();
+
+  timerInterval = setInterval(()=>{
+    timerRemaining--;
+    if(timerRemaining <= 0) {
+      timerRemaining = 0;
+      clearInterval(timerInterval);
+      timerInterval = null;
+      cd.className = 'timer-countdown done';
+      cd.textContent = 'GO!';
+      bar.style.width = '100%';
+      bar.style.background = 'linear-gradient(90deg,var(--warn),var(--red))';
+      if(navigator.vibrate) navigator.vibrate([200,100,200]);
+      setTimeout(()=>{
+        if(!timerInterval) {
+          cd.className = 'timer-countdown'; cd.textContent = '—';
+          bar.style.width = '0%'; bar.style.background = 'linear-gradient(90deg,var(--accent),var(--blue))';
+          stopBtn.style.display = 'none';
+          document.querySelectorAll('.timer-btn').forEach(b => b.classList.remove('active'));
+        }
+      }, 3000);
+      return;
+    }
+    updateTimerDisplay();
+  }, 1000);
+}
+
+function updateTimerDisplay() {
+  const cd = document.getElementById('timer-countdown');
+  const bar = document.getElementById('timer-bar');
+  const m = Math.floor(timerRemaining / 60);
+  const s = timerRemaining % 60;
+  cd.textContent = `${m}:${s.toString().padStart(2,'0')}`;
+  const pct = ((timerTotal - timerRemaining) / timerTotal) * 100;
+  bar.style.width = pct + '%';
+  bar.style.background = 'linear-gradient(90deg,var(--accent),var(--blue))';
+}
+
+function stopTimer() {
+  if(timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  const cd = document.getElementById('timer-countdown');
+  const bar = document.getElementById('timer-bar');
+  const stopBtn = document.getElementById('timer-stop');
+  cd.className = 'timer-countdown'; cd.textContent = '—';
+  bar.style.width = '0%'; bar.style.background = 'linear-gradient(90deg,var(--accent),var(--blue))';
+  stopBtn.style.display = 'none';
+  document.querySelectorAll('.timer-btn').forEach(b => b.classList.remove('active'));
 }
 
 // ═══════════════════════════════════════════════════════
@@ -734,12 +836,7 @@ function showPage(name, btn) {
   if(name==='swim-entry') { document.getElementById('sw-date').valueAsDate=new Date(); document.getElementById('sw-week').value=getCurrentWeek(); }
 }
 
-// ═══════════════════════════════════════════════════════
-// HOME
-// ═══════════════════════════════════════════════════════
-function getCurrentWeek() {
-  return Math.floor((new Date()-new Date(2026,0,6))/(7*24*3600*1000))+1;
-}
+function getCurrentWeek() { return Math.floor((new Date()-new Date(2026,0,6))/(7*24*3600*1000))+1; }
 
 function initHome() {
   const now = new Date();
@@ -747,7 +844,6 @@ function initHome() {
   const mos=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   document.getElementById('hd').textContent=`${days[now.getDay()]} ${now.getDate()} ${mos[now.getMonth()]} ${now.getFullYear()}`;
   document.getElementById('hw').textContent=`Week ${getCurrentWeek()}`;
-
   const tl = document.getElementById('tpl-list');
   tl.innerHTML = TEMPLATES.map((t,i)=>`
     <div class="tc t${i}" onclick="openSetup('${t.key}')">
@@ -771,19 +867,9 @@ function updateStats() {
   document.getElementById('st-7').textContent = allSessions.filter(s=>new Date(s.date)>=ago7).length;
 }
 
-// ═══════════════════════════════════════════════════════
-// FAVOURITES
-// ═══════════════════════════════════════════════════════
 function toggleFav(exId, btn) {
-  if(favourites.has(exId)) {
-    favourites.delete(exId);
-    btn.classList.remove('starred');
-    btn.textContent = '☆';
-  } else {
-    favourites.add(exId);
-    btn.classList.add('starred');
-    btn.textContent = '★';
-  }
+  if(favourites.has(exId)) { favourites.delete(exId); btn.classList.remove('starred'); btn.textContent='☆'; }
+  else { favourites.add(exId); btn.classList.add('starred'); btn.textContent='★'; }
   save();
 }
 
@@ -792,10 +878,7 @@ function toggleFav(exId, btn) {
 // ═══════════════════════════════════════════════════════
 function renderCustomList() {
   const container = document.getElementById('custom-list');
-  if(!customWorkouts.length) {
-    container.innerHTML = `<div style="font-size:.72rem;color:var(--muted);padding:8px 0">No custom workouts yet. Star exercises then create a custom workout.</div>`;
-    return;
-  }
+  if(!customWorkouts.length) { container.innerHTML = `<div style="font-size:.72rem;color:var(--muted);padding:8px 0">No custom workouts yet. Star exercises then create a custom workout.</div>`; return; }
   container.innerHTML = customWorkouts.map((cw,i)=>`
     <div class="custom-workout-card">
       <div style="flex:1;cursor:pointer" onclick="openSetupCustom(${i})">
@@ -829,8 +912,6 @@ function editCustomWorkout(idx) {
 function renderModalExList(selectedIds) {
   const container = document.getElementById('modal-ex-list');
   const selected = new Set(selectedIds);
-
-  // Group by category
   const categories = [
     { name:'⭐ Favourites', ids: [...favourites].filter(id=>LIB[id]) },
     { name:'Push', ids:['bench','incline','fly','ohp','facepull'] },
@@ -839,82 +920,37 @@ function renderModalExList(selectedIds) {
     { name:'Core', ids:['deadbug','pallof','crunch','plank','sideplank','oblique'] },
     { name:'Arms', ids:['tricep','bicep','hammer'] },
   ];
-
   container.innerHTML = categories.filter(c=>c.ids.length>0).map(cat=>`
     <div style="font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin:10px 0 5px">${cat.name}</div>
-    ${cat.ids.map(id=>{
-      const ex = LIB[id];
-      if(!ex) return '';
-      const isSel = selected.has(id);
+    ${cat.ids.map(id=>{ const ex=LIB[id]; if(!ex) return ''; const isSel=selected.has(id);
       return `<div class="fav-exercise-row ${isSel?'selected':''}" id="modal-ex-${id}" onclick="toggleModalEx('${id}')">
-        <div class="check">${isSel?'✓':'○'}</div>
-        <div>
-          <div class="fav-exercise-row-name">${ex.name}</div>
-          <div class="fav-exercise-row-meta">${ex.sets} sets · ${ex.reps}</div>
-        </div>
-      </div>`;
-    }).join('')}
+        <div class="check">${isSel?'✓':'○'}</div><div><div class="fav-exercise-row-name">${ex.name}</div><div class="fav-exercise-row-meta">${ex.sets} sets · ${ex.reps}</div></div></div>`; }).join('')}
   `).join('');
 }
 
-function toggleModalEx(id) {
-  const row = document.getElementById('modal-ex-'+id);
-  row.classList.toggle('selected');
-  row.querySelector('.check').textContent = row.classList.contains('selected') ? '✓' : '○';
-}
+function toggleModalEx(id) { const row=document.getElementById('modal-ex-'+id); row.classList.toggle('selected'); row.querySelector('.check').textContent=row.classList.contains('selected')?'✓':'○'; }
 
 function saveCustomWorkout() {
-  const name = document.getElementById('custom-name').value.trim();
-  if(!name) { alert('Please enter a workout name'); return; }
-
-  const selectedIds = [...document.querySelectorAll('.fav-exercise-row.selected')]
-    .map(el=>el.id.replace('modal-ex-',''));
-
-  if(!selectedIds.length) { alert('Select at least one exercise'); return; }
-
-  const cw = { name, exIds: selectedIds };
-  if(editingCustomIdx >= 0) {
-    customWorkouts[editingCustomIdx] = cw;
-  } else {
-    customWorkouts.push(cw);
-  }
-  save();
-  closeModal('modal-custom');
-  renderCustomList();
+  const name=document.getElementById('custom-name').value.trim();
+  if(!name){alert('Please enter a workout name');return;}
+  const selectedIds=[...document.querySelectorAll('.fav-exercise-row.selected')].map(el=>el.id.replace('modal-ex-',''));
+  if(!selectedIds.length){alert('Select at least one exercise');return;}
+  const cw={name,exIds:selectedIds};
+  if(editingCustomIdx>=0) customWorkouts[editingCustomIdx]=cw; else customWorkouts.push(cw);
+  save(); closeModal('modal-custom'); renderCustomList();
 }
 
-function deleteCustomWorkout(idx) {
-  if(!confirm('Delete this custom workout?')) return;
-  customWorkouts.splice(idx,1);
-  save();
-  renderCustomList();
-}
-
-function closeModal(id) {
-  document.getElementById(id).classList.remove('open');
-}
+function deleteCustomWorkout(idx) { if(!confirm('Delete this custom workout?'))return; customWorkouts.splice(idx,1); save(); renderCustomList(); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
 function openSetupCustom(idx) {
-  const cw = customWorkouts[idx];
-  currentTplKey = '_custom_'+idx;
-  document.getElementById('setup-title').textContent = cw.name;
-  activeExIds = [...cw.exIds];
-
-  const sl = document.getElementById('setup-list');
-  sl.innerHTML = `
-    <div class="setup-section">Exercises</div>
-    ${cw.exIds.map(id=>{
-      const ex = LIB[id];
-      if(!ex) return '';
-      return `<div class="setup-ex" id="se-${id}">
-        <div>
-          <div class="setup-ex-name">${ex.name}${badgeHtml(ex.b)}</div>
-          <div class="setup-ex-meta">${ex.sets} sets · ${ex.reps} reps · ${ex.rest} rest</div>
-        </div>
-        <button class="toggle-ex active" id="te-${id}" onclick="toggleSetupEx('${id}')">✓</button>
-      </div>`;
-    }).join('')}`;
-
+  const cw=customWorkouts[idx]; currentTplKey='_custom_'+idx;
+  document.getElementById('setup-title').textContent=cw.name;
+  activeExIds=[...cw.exIds];
+  const sl=document.getElementById('setup-list');
+  sl.innerHTML=`<div class="setup-section">Exercises</div>
+    ${cw.exIds.map(id=>{ const ex=LIB[id]; if(!ex) return '';
+      return `<div class="setup-ex" id="se-${id}"><div><div class="setup-ex-name">${ex.name}${badgeHtml(ex.b)}</div><div class="setup-ex-meta">${ex.sets} sets · ${ex.reps} reps · ${ex.rest} rest</div></div><button class="toggle-ex active" id="te-${id}" onclick="toggleSetupEx('${id}')">✓</button></div>`; }).join('')}`;
   showPage('setup');
 }
 
@@ -922,117 +958,91 @@ function openSetupCustom(idx) {
 // SETUP
 // ═══════════════════════════════════════════════════════
 function openSetup(key) {
-  currentTplKey = key;
-  const tpl = TEMPLATES.find(t=>t.key===key);
-  document.getElementById('setup-title').textContent = tpl.name;
-  activeExIds = tpl.sections.flatMap(s=>s.exIds);
-
-  const sl = document.getElementById('setup-list');
-  sl.innerHTML = tpl.sections.map(s=>`
-    <div class="setup-section">${s.name}</div>
-    ${s.exIds.map(id=>{
-      const ex = LIB[id];
-      const isFav = favourites.has(id);
-      return `<div class="setup-ex" id="se-${id}">
-        <div style="flex:1">
-          <div class="setup-ex-name">${isFav?'★ ':''}${ex.name}${badgeHtml(ex.b)}</div>
-          <div class="setup-ex-meta">${ex.sets} sets · ${ex.reps} reps · ${ex.rest} rest</div>
-        </div>
-        <button class="toggle-ex active" id="te-${id}" onclick="toggleSetupEx('${id}')">✓</button>
-      </div>`;
-    }).join('')}
+  currentTplKey=key; const tpl=TEMPLATES.find(t=>t.key===key);
+  document.getElementById('setup-title').textContent=tpl.name;
+  activeExIds=tpl.sections.flatMap(s=>s.exIds);
+  const sl=document.getElementById('setup-list');
+  sl.innerHTML=tpl.sections.map(s=>`<div class="setup-section">${s.name}</div>
+    ${s.exIds.map(id=>{ const ex=LIB[id]; const isFav=favourites.has(id);
+      return `<div class="setup-ex" id="se-${id}"><div style="flex:1"><div class="setup-ex-name">${isFav?'★ ':''}${ex.name}${badgeHtml(ex.b)}</div><div class="setup-ex-meta">${ex.sets} sets · ${ex.reps} reps · ${ex.rest} rest</div></div><button class="toggle-ex active" id="te-${id}" onclick="toggleSetupEx('${id}')">✓</button></div>`; }).join('')}
   `).join('');
-
   showPage('setup');
 }
 
 function toggleSetupEx(id) {
-  const btn = document.getElementById('te-'+id);
-  const row = document.getElementById('se-'+id);
-  const idx = activeExIds.indexOf(id);
-  if(idx>-1) {
-    activeExIds.splice(idx,1);
-    btn.classList.remove('active'); btn.textContent='+';
-    row.classList.add('removed');
-  } else {
-    activeExIds.push(id);
-    btn.classList.add('active'); btn.textContent='✓';
-    row.classList.remove('removed');
+  const btn=document.getElementById('te-'+id); const row=document.getElementById('se-'+id);
+  const idx=activeExIds.indexOf(id);
+  if(idx>-1){activeExIds.splice(idx,1);btn.classList.remove('active');btn.textContent='+';row.classList.add('removed');}
+  else{activeExIds.push(id);btn.classList.add('active');btn.textContent='✓';row.classList.remove('removed');}
+}
+
+// ═══════════════════════════════════════════════════════
+// PRE-FILL: Get last logged values per exercise
+// ═══════════════════════════════════════════════════════
+function getLastValues(exId) {
+  for(let i = sessions.length - 1; i >= 0; i--) {
+    const s = sessions[i];
+    if(s.exercises && s.exercises[exId]) {
+      const ex = s.exercises[exId];
+      const sets = (ex.sets || []).filter(st => st.done && (st.kg || st.reps));
+      if(sets.length) return sets;
+    }
   }
+  return null;
 }
 
 // ═══════════════════════════════════════════════════════
 // LOGGING
 // ═══════════════════════════════════════════════════════
 function startLogging() {
-  if(!activeExIds.length) { alert('Add at least one exercise!'); return; }
-
+  if(!activeExIds.length){alert('Add at least one exercise!');return;}
+  stopTimer();
   let tplName;
-  if(currentTplKey.startsWith('_custom_')) {
-    const idx = parseInt(currentTplKey.replace('_custom_',''));
-    tplName = customWorkouts[idx].name;
-  } else {
-    const tpl = TEMPLATES.find(t=>t.key===currentTplKey);
-    tplName = tpl.name;
-  }
-
-  document.getElementById('log-title').textContent = tplName;
-  document.getElementById('log-date').valueAsDate = new Date();
-  document.getElementById('log-week').value = getCurrentWeek();
-  document.getElementById('log-feel').value = '';
-
-  buildExerciseCards();
-  updateProgress();
-  showPage('log');
+  if(currentTplKey.startsWith('_custom_')){const idx=parseInt(currentTplKey.replace('_custom_',''));tplName=customWorkouts[idx].name;}
+  else{tplName=TEMPLATES.find(t=>t.key===currentTplKey).name;}
+  document.getElementById('log-title').textContent=tplName;
+  document.getElementById('log-date').valueAsDate=new Date();
+  document.getElementById('log-week').value=getCurrentWeek();
+  document.getElementById('log-feel').value='';
+  buildExerciseCards(); updateProgress(); showPage('log');
 }
 
-function badgeHtml(b=[]) {
-  return b.map(x=>{
-    if(x==='c') return '<span class="bdg bc">Cable</span>';
-    if(x==='e') return '<span class="bdg be">Elbow ✓</span>';
-    if(x==='bw') return '<span class="bdg bb">BW</span>';
-    return '';
-  }).join('');
-}
+function badgeHtml(b=[]) { return b.map(x=>{ if(x==='c') return '<span class="bdg bc">Cable</span>'; if(x==='e') return '<span class="bdg be">Elbow ✓</span>'; if(x==='bw') return '<span class="bdg bb">BW</span>'; return ''; }).join(''); }
 
 function prevBest(exId) {
-  const prev = sessions.filter(s=>s.exercises&&s.exercises[exId]);
+  const prev=sessions.filter(s=>s.exercises&&s.exercises[exId]);
   if(!prev.length) return null;
-  const last = prev[prev.length-1];
-  const ex = last.exercises[exId];
-  const done = (ex?.sets||[]).filter(s=>s.done&&s.kg);
+  const last=prev[prev.length-1]; const ex=last.exercises[exId];
+  const done=(ex?.sets||[]).filter(s=>s.done&&s.kg);
   if(!done.length) return null;
-  const top = done.reduce((a,b)=>(parseFloat(b.kg)||0)>(parseFloat(a.kg)||0)?b:a);
+  const top=done.reduce((a,b)=>(parseFloat(b.kg)||0)>(parseFloat(a.kg)||0)?b:a);
   return `Last: ${top.kg}kg × ${top.reps}${top.rpe?' · RPE '+top.rpe:''}`;
 }
 
 function buildExerciseCards() {
-  const el = document.getElementById('ex-list');
-  el.innerHTML = '';
-
-  // Group active exercises by their template sections (or flat for custom)
-  let sections = [];
-  if(currentTplKey.startsWith('_custom_')) {
-    sections = [{ name:'Exercises', exIds: activeExIds }];
-  } else {
-    const tpl = TEMPLATES.find(t=>t.key===currentTplKey);
-    sections = tpl.sections.map(s=>({ name:s.name, exIds:s.exIds.filter(id=>activeExIds.includes(id)) })).filter(s=>s.exIds.length);
-  }
+  const el=document.getElementById('ex-list'); el.innerHTML='';
+  let sections=[];
+  if(currentTplKey.startsWith('_custom_')){sections=[{name:'Exercises',exIds:activeExIds}];}
+  else{const tpl=TEMPLATES.find(t=>t.key===currentTplKey);sections=tpl.sections.map(s=>({name:s.name,exIds:s.exIds.filter(id=>activeExIds.includes(id))})).filter(s=>s.exIds.length);}
 
   sections.forEach(sec=>{
-    el.innerHTML += `<div class="slabel">${sec.name}</div>`;
+    el.innerHTML+=`<div class="slabel">${sec.name}</div>`;
     sec.exIds.forEach(id=>{
-      const ex = LIB[id];
-      if(!ex) return;
-      const pb = prevBest(id);
-      const isFav = favourites.has(id);
+      const ex=LIB[id]; if(!ex) return;
+      const pb=prevBest(id); const isFav=favourites.has(id);
+      const lastVals=getLastValues(id);
+
       let rows='';
-      for(let i=1;i<=ex.sets;i++) {
+      for(let i=1;i<=ex.sets;i++){
+        const prev=lastVals&&lastVals[i-1];
+        const prevKg=prev?prev.kg:'';
+        const prevReps=prev?prev.reps:'';
+        const prevRpe=prev?prev.rpe:'';
         rows+=`<div class="sr">
           <span class="sn">${i}</span>
-          <input type="number" placeholder="kg" step="2.5" id="kg-${id}-${i}" onchange="updateProgress()">
-          <input type="number" placeholder="reps" id="rp-${id}-${i}" onchange="updateProgress()">
-          <input type="number" placeholder="RPE" min="1" max="10" id="rpe-${id}-${i}">
+          <input type="number" placeholder="kg" step="2.5" id="kg-${id}-${i}" value="${prevKg}" ${prevKg?'class="prefilled"':''} onchange="updateProgress();this.classList.remove('prefilled')" onfocus="this.select()">
+          <input type="number" placeholder="reps" id="rp-${id}-${i}" value="${prevReps}" ${prevReps?'class="prefilled"':''} onchange="updateProgress();this.classList.remove('prefilled')" onfocus="this.select()">
+          <input type="number" placeholder="RPE" min="1" max="10" id="rpe-${id}-${i}" value="${prevRpe}" ${prevRpe?'class="prefilled"':''} onchange="this.classList.remove('prefilled')" onfocus="this.select()">
           <button class="db" onclick="toggleDone(this)" id="db-${id}-${i}">○</button>
         </div>`;
       }
@@ -1059,21 +1069,12 @@ function buildExerciseCards() {
   });
 }
 
-function toggleEx(id) {
-  document.getElementById('ecb-'+id).classList.toggle('open');
-  document.getElementById('chev-'+id).classList.toggle('open');
-}
+function toggleEx(id){document.getElementById('ecb-'+id).classList.toggle('open');document.getElementById('chev-'+id).classList.toggle('open');}
+function toggleDone(btn){btn.classList.toggle('chk');btn.textContent=btn.classList.contains('chk')?'✓':'○';updateProgress();}
 
-function toggleDone(btn) {
-  btn.classList.toggle('chk');
-  btn.textContent = btn.classList.contains('chk') ? '✓' : '○';
-  updateProgress();
-}
-
-function updateProgress() {
-  const all = document.querySelectorAll('.db');
-  const done = document.querySelectorAll('.db.chk');
-  const pct = all.length ? (done.length/all.length)*100 : 0;
+function updateProgress(){
+  const all=document.querySelectorAll('.db');const done=document.querySelectorAll('.db.chk');
+  const pct=all.length?(done.length/all.length)*100:0;
   document.getElementById('prog-txt').textContent=`${done.length} / ${all.length} sets`;
   document.getElementById('prog-fill').style.width=pct+'%';
 }
@@ -1081,371 +1082,134 @@ function updateProgress() {
 // ═══════════════════════════════════════════════════════
 // SAVE SESSION
 // ═══════════════════════════════════════════════════════
-function saveSession() {
+function saveSession(){
+  stopTimer();
   let tplName;
-  if(currentTplKey.startsWith('_custom_')) {
-    const idx = parseInt(currentTplKey.replace('_custom_',''));
-    tplName = customWorkouts[idx].name;
-  } else {
-    tplName = TEMPLATES.find(t=>t.key===currentTplKey).name;
-  }
-
-  const session = {
-    id: Date.now(),
-    template: currentTplKey,
-    templateName: tplName,
-    date: document.getElementById('log-date').value,
-    week: document.getElementById('log-week').value,
-    feel: document.getElementById('log-feel').value,
-    exercises: {}
-  };
-
+  if(currentTplKey.startsWith('_custom_')){const idx=parseInt(currentTplKey.replace('_custom_',''));tplName=customWorkouts[idx].name;}
+  else{tplName=TEMPLATES.find(t=>t.key===currentTplKey).name;}
+  const session={id:Date.now(),template:currentTplKey,templateName:tplName,date:document.getElementById('log-date').value,week:document.getElementById('log-week').value,feel:document.getElementById('log-feel').value,exercises:{}};
   activeExIds.forEach(id=>{
-    const ex = LIB[id];
-    if(!ex) return;
+    const ex=LIB[id]; if(!ex) return;
     const sets=[];
-    for(let i=1;i<=ex.sets;i++) {
-      sets.push({
-        set:i,
-        kg: document.getElementById(`kg-${id}-${i}`)?.value||'',
-        reps: document.getElementById(`rp-${id}-${i}`)?.value||'',
-        rpe: document.getElementById(`rpe-${id}-${i}`)?.value||'',
-        done: document.getElementById(`db-${id}-${i}`)?.classList.contains('chk')||false
-      });
-    }
-    session.exercises[id]={ name:ex.name, sets };
-    const nt = document.getElementById(`nt-${id}`);
-    if(nt?.value) session.exercises[id].notes = nt.value;
+    for(let i=1;i<=ex.sets;i++){sets.push({set:i,kg:document.getElementById(`kg-${id}-${i}`)?.value||'',reps:document.getElementById(`rp-${id}-${i}`)?.value||'',rpe:document.getElementById(`rpe-${id}-${i}`)?.value||'',done:document.getElementById(`db-${id}-${i}`)?.classList.contains('chk')||false});}
+    session.exercises[id]={name:ex.name,sets};
+    const nt=document.getElementById(`nt-${id}`);
+    if(nt?.value) session.exercises[id].notes=nt.value;
   });
-
-  sessions.push(session);
-  save();
-  fillChartSelect();
-  updateStats();
-
-  const st = document.getElementById('save-status');
+  sessions.push(session); save(); fillChartSelect(); updateStats();
+  const st=document.getElementById('save-status');
   st.textContent='✓ Session saved!'; st.style.display='block';
-  setTimeout(()=>{ st.style.display='none'; showPage('history', document.querySelectorAll('.nav-btn')[2]); },1500);
+  setTimeout(()=>{st.style.display='none';showPage('history',document.querySelectorAll('.nav-btn')[2]);},1500);
 }
 
-function cancelSession() {
-  if(confirm('Cancel this session?')) showPage('home');
-}
+function cancelSession(){if(confirm('Cancel this session?')){stopTimer();showPage('home');}}
 
 // ═══════════════════════════════════════════════════════
-// SWIM LOG
+// SWIM
 // ═══════════════════════════════════════════════════════
-function openSwimEntry() {
-  document.getElementById('sw-date').valueAsDate = new Date();
-  document.getElementById('sw-week').value = getCurrentWeek();
-  document.getElementById('sw-notes').value = '';
-  document.getElementById('sw-crawl-dist').value = '';
-  document.getElementById('sw-crawl-pace').value = '';
-  document.getElementById('sw-crawl-swolf').value = '';
-  document.getElementById('sw-breast-dist').value = '';
-  document.getElementById('sw-breast-pace').value = '';
-  document.getElementById('sw-breast-swolf').value = '';
-  document.getElementById('sw-ratio-card').style.display = 'none';
+function openSwimEntry(){
+  document.getElementById('sw-date').valueAsDate=new Date();
+  document.getElementById('sw-week').value=getCurrentWeek();
+  ['sw-notes','sw-crawl-dist','sw-crawl-pace','sw-crawl-swolf','sw-breast-dist','sw-breast-pace','sw-breast-swolf'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('sw-ratio-card').style.display='none';
   showPage('swim-entry');
 }
 
-function updateSwimRatio() {
-  const crawl = parseFloat(document.getElementById('sw-crawl-dist').value)||0;
-  const breast = parseFloat(document.getElementById('sw-breast-dist').value)||0;
-  const total = crawl + breast;
-
-  if(total > 0) {
-    document.getElementById('sw-ratio-card').style.display = 'block';
-    document.getElementById('sw-total-calc').textContent = total+'m';
-    const ratio = Math.round((crawl/total)*100);
-    document.getElementById('sw-ratio-calc').textContent = ratio+'%';
-
-    // Compare to last session
-    const lastSwim = swimSessions[swimSessions.length-1];
-    if(lastSwim && lastSwim.crawlRatio !== undefined) {
-      const diff = ratio - lastSwim.crawlRatio;
-      document.getElementById('sw-ratio-trend').textContent = diff >= 0 ? `+${diff}%` : `${diff}%`;
-      document.getElementById('sw-ratio-trend').style.color = diff >= 0 ? 'var(--accent)' : 'var(--red)';
-    } else {
-      document.getElementById('sw-ratio-trend').textContent = 'First!';
-    }
-  } else {
-    document.getElementById('sw-ratio-card').style.display = 'none';
-  }
+function updateSwimRatio(){
+  const crawl=parseFloat(document.getElementById('sw-crawl-dist').value)||0;
+  const breast=parseFloat(document.getElementById('sw-breast-dist').value)||0;
+  const total=crawl+breast;
+  if(total>0){
+    document.getElementById('sw-ratio-card').style.display='block';
+    document.getElementById('sw-total-calc').textContent=total+'m';
+    const ratio=Math.round((crawl/total)*100);
+    document.getElementById('sw-ratio-calc').textContent=ratio+'%';
+    const lastSwim=swimSessions[swimSessions.length-1];
+    if(lastSwim&&lastSwim.crawlRatio!==undefined){const diff=ratio-lastSwim.crawlRatio;document.getElementById('sw-ratio-trend').textContent=diff>=0?`+${diff}%`:`${diff}%`;document.getElementById('sw-ratio-trend').style.color=diff>=0?'var(--accent)':'var(--red)';}
+    else{document.getElementById('sw-ratio-trend').textContent='First!';}
+  } else { document.getElementById('sw-ratio-card').style.display='none'; }
 }
 
-function saveSwimSession() {
-  const crawl = parseFloat(document.getElementById('sw-crawl-dist').value)||0;
-  const breast = parseFloat(document.getElementById('sw-breast-dist').value)||0;
-  const total = crawl + breast;
-
-  if(total === 0) { alert('Enter at least one distance'); return; }
-
-  const session = {
-    id: Date.now(),
-    type: 'swim',
-    date: document.getElementById('sw-date').value,
-    week: document.getElementById('sw-week').value,
-    notes: document.getElementById('sw-notes').value,
-    crawl: {
-      distance: crawl,
-      pace: document.getElementById('sw-crawl-pace').value,
-      swolf: parseFloat(document.getElementById('sw-crawl-swolf').value)||null
-    },
-    breast: {
-      distance: breast,
-      pace: document.getElementById('sw-breast-pace').value,
-      swolf: parseFloat(document.getElementById('sw-breast-swolf').value)||null
-    },
-    totalDistance: total,
-    crawlRatio: total > 0 ? Math.round((crawl/total)*100) : 0
-  };
-
-  swimSessions.push(session);
-  save();
-  updateStats();
-
-  const st = document.getElementById('swim-save-status');
-  st.textContent=`✓ Swim saved! ${total}m · ${session.crawlRatio}% crawl`;
-  st.style.display='block';
-  setTimeout(()=>{ st.style.display='none'; showPage('swim-log', document.querySelectorAll('.nav-btn')[1]); },1500);
+function saveSwimSession(){
+  const crawl=parseFloat(document.getElementById('sw-crawl-dist').value)||0;
+  const breast=parseFloat(document.getElementById('sw-breast-dist').value)||0;
+  const total=crawl+breast;
+  if(total===0){alert('Enter at least one distance');return;}
+  const session={id:Date.now(),type:'swim',date:document.getElementById('sw-date').value,week:document.getElementById('sw-week').value,notes:document.getElementById('sw-notes').value,
+    crawl:{distance:crawl,pace:document.getElementById('sw-crawl-pace').value,swolf:parseFloat(document.getElementById('sw-crawl-swolf').value)||null},
+    breast:{distance:breast,pace:document.getElementById('sw-breast-pace').value,swolf:parseFloat(document.getElementById('sw-breast-swolf').value)||null},
+    totalDistance:total,crawlRatio:total>0?Math.round((crawl/total)*100):0};
+  swimSessions.push(session); save(); updateStats();
+  const st=document.getElementById('swim-save-status');
+  st.textContent=`✓ Swim saved! ${total}m · ${session.crawlRatio}% crawl`; st.style.display='block';
+  setTimeout(()=>{st.style.display='none';showPage('swim-log',document.querySelectorAll('.nav-btn')[1]);},1500);
 }
 
-function renderSwimLog() {
-  const container = document.getElementById('swim-list');
-
-  if(!swimSessions.length) {
-    document.getElementById('swim-summary').style.display = 'none';
-    container.innerHTML = `<div class="empty"><div class="ei">🏊</div><h3>No swim sessions yet</h3><p>Tap "+ Log Swim" to record your first session.</p></div>`;
-    return;
-  }
-
-  // Summary stats
-  document.getElementById('swim-summary').style.display = 'block';
-  const totalDist = swimSessions.reduce((a,s)=>a+s.totalDistance,0);
-  document.getElementById('sw-total-dist').textContent = (totalDist/1000).toFixed(1);
-  document.getElementById('sw-sessions').textContent = swimSessions.length;
-  const avgRatio = Math.round(swimSessions.reduce((a,s)=>a+s.crawlRatio,0)/swimSessions.length);
-  document.getElementById('sw-avg-ratio').textContent = avgRatio+'%';
-
-  // Crawl ratio chart
+function renderSwimLog(){
+  const container=document.getElementById('swim-list');
+  if(!swimSessions.length){document.getElementById('swim-summary').style.display='none';container.innerHTML=`<div class="empty"><div class="ei">🏊</div><h3>No swim sessions yet</h3><p>Tap "+ Log Swim" to record your first session.</p></div>`;return;}
+  document.getElementById('swim-summary').style.display='block';
+  const totalDist=swimSessions.reduce((a,s)=>a+s.totalDistance,0);
+  document.getElementById('sw-total-dist').textContent=(totalDist/1000).toFixed(1);
+  document.getElementById('sw-sessions').textContent=swimSessions.length;
+  const avgRatio=Math.round(swimSessions.reduce((a,s)=>a+s.crawlRatio,0)/swimSessions.length);
+  document.getElementById('sw-avg-ratio').textContent=avgRatio+'%';
   if(swimChartInst) swimChartInst.destroy();
-  const sorted = [...swimSessions].sort((a,b)=>new Date(a.date)-new Date(b.date));
-  const labels = sorted.map(s=>`W${s.week}`);
-  const ratios = sorted.map(s=>s.crawlRatio);
+  const sorted=[...swimSessions].sort((a,b)=>new Date(a.date)-new Date(b.date));
+  swimChartInst=new Chart(document.getElementById('chart-crawl'),{type:'line',data:{labels:sorted.map(s=>`W${s.week}`),datasets:[{label:'Crawl %',data:sorted.map(s=>s.crawlRatio),borderColor:'#00c8ff',backgroundColor:'rgba(0,200,255,.1)',tension:.4,fill:true,pointBackgroundColor:'#00c8ff',pointRadius:4}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:{backgroundColor:'#18182a',borderColor:'#2a2a45',borderWidth:1,titleColor:'#e8e8f8',bodyColor:'#6b6b90',callbacks:{label:ctx=>`${ctx.raw}% crawl`}}},scales:{x:{grid:{color:'#2a2a45'},ticks:{color:'#6b6b90',font:{size:10}}},y:{grid:{color:'#2a2a45'},ticks:{color:'#6b6b90',font:{size:10},callback:v=>v+'%'},min:0,max:100}}}});
 
-  swimChartInst = new Chart(document.getElementById('chart-crawl'), {
-    type:'line',
-    data:{
-      labels,
-      datasets:[{
-        label:'Crawl %',
-        data:ratios,
-        borderColor:'#00c8ff',
-        backgroundColor:'rgba(0,200,255,.1)',
-        tension:.4, fill:true,
-        pointBackgroundColor:'#00c8ff',
-        pointRadius:4
-      }]
-    },
-    options:{
-      responsive:true,
-      plugins:{ legend:{display:false}, tooltip:{ backgroundColor:'#18182a', borderColor:'#2a2a45', borderWidth:1, titleColor:'#e8e8f8', bodyColor:'#6b6b90', callbacks:{ label:ctx=>`${ctx.raw}% crawl` } } },
-      scales:{
-        x:{ grid:{color:'#2a2a45'}, ticks:{color:'#6b6b90',font:{size:10}} },
-        y:{ grid:{color:'#2a2a45'}, ticks:{color:'#6b6b90',font:{size:10},callback:v=>v+'%'}, min:0, max:100 }
-      }
-    }
-  });
-
-  // Session list
-  container.innerHTML = [...swimSessions].reverse().map(s=>`
-    <div class="swim-session-card">
-      <div class="swim-session-header" onclick="this.nextElementSibling.classList.toggle('open')">
-        <div>
-          <div class="swim-session-title">🏊 ${s.totalDistance}m · ${s.crawlRatio}% crawl</div>
-          <div class="swim-session-date">Week ${s.week} · ${fmtDate(s.date)}${s.notes?' · '+s.notes:''}</div>
-        </div>
-        <div style="color:var(--muted);font-size:.75rem">▼</div>
-      </div>
-      <div class="swim-session-body">
-        <div class="swim-stats-row">
-          <div class="swim-stat">
-            <div class="swim-stat-val">${s.crawl.distance||0}m</div>
-            <div class="swim-stat-lbl">Crawl</div>
-          </div>
-          <div class="swim-stat">
-            <div class="swim-stat-val">${s.breast.distance||0}m</div>
-            <div class="swim-stat-lbl">Breast</div>
-          </div>
-          <div class="swim-stat">
-            <div class="swim-stat-val">${s.crawl.pace||'—'}</div>
-            <div class="swim-stat-lbl">Crawl /100m</div>
-          </div>
-          <div class="swim-stat">
-            <div class="swim-stat-val">${s.crawl.swolf||'—'}</div>
-            <div class="swim-stat-lbl">SWOLF</div>
-          </div>
-        </div>
-        <button class="btn btn-d btn-sm" style="margin-top:10px" onclick="delSwimSession(${s.id})">Delete</button>
-      </div>
-    </div>`).join('');
+  container.innerHTML=[...swimSessions].reverse().map(s=>`
+    <div class="swim-session-card"><div class="swim-session-header" onclick="this.nextElementSibling.classList.toggle('open')"><div><div class="swim-session-title">🏊 ${s.totalDistance}m · ${s.crawlRatio}% crawl</div><div class="swim-session-date">Week ${s.week} · ${fmtDate(s.date)}${s.notes?' · '+s.notes:''}</div></div><div style="color:var(--muted);font-size:.75rem">▼</div></div>
+    <div class="swim-session-body"><div class="swim-stats-row"><div class="swim-stat"><div class="swim-stat-val">${s.crawl.distance||0}m</div><div class="swim-stat-lbl">Crawl</div></div><div class="swim-stat"><div class="swim-stat-val">${s.breast.distance||0}m</div><div class="swim-stat-lbl">Breast</div></div><div class="swim-stat"><div class="swim-stat-val">${s.crawl.pace||'—'}</div><div class="swim-stat-lbl">Crawl /100m</div></div><div class="swim-stat"><div class="swim-stat-val">${s.crawl.swolf||'—'}</div><div class="swim-stat-lbl">SWOLF</div></div></div>
+    <button class="btn btn-d btn-sm" style="margin-top:10px" onclick="delSwimSession(${s.id})">Delete</button></div></div>`).join('');
 }
 
-function delSwimSession(id) {
-  if(!confirm('Delete this swim session?')) return;
-  swimSessions = swimSessions.filter(s=>s.id!==id);
-  save(); renderSwimLog(); updateStats();
-}
+function delSwimSession(id){if(!confirm('Delete this swim session?'))return;swimSessions=swimSessions.filter(s=>s.id!==id);save();renderSwimLog();updateStats();}
 
 // ═══════════════════════════════════════════════════════
 // HISTORY
 // ═══════════════════════════════════════════════════════
-function renderHistory() {
-  const hl = document.getElementById('hist-list');
-  const allSessions = [...sessions, ...swimSessions].sort((a,b)=>new Date(b.date)-new Date(a.date));
-
-  if(!allSessions.length) {
-    hl.innerHTML=`<div class="empty"><div class="ei">📋</div><h3>No sessions yet</h3><p>Complete your first workout to see it here.</p></div>`;
-    return;
-  }
-
+function renderHistory(){
+  const hl=document.getElementById('hist-list');
+  const allSessions=[...sessions,...swimSessions].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  if(!allSessions.length){hl.innerHTML=`<div class="empty"><div class="ei">📋</div><h3>No sessions yet</h3><p>Complete your first workout to see it here.</p></div>`;return;}
   hl.innerHTML=allSessions.map(s=>{
-    if(s.type === 'swim') {
-      return `<div class="hcard" style="border-color:rgba(0,200,255,.2)">
-        <div class="hch" onclick="this.nextElementSibling.classList.toggle('open')">
-          <div>
-            <div class="hct" style="color:var(--swim)">🏊 Swim — ${s.totalDistance}m</div>
-            <div class="hcd">Week ${s.week} · ${fmtDate(s.date)} · ${s.crawlRatio}% crawl</div>
-          </div>
-          <div style="color:var(--muted);font-size:.75rem">▼</div>
-        </div>
-        <div class="hcb">
-          <div class="swim-stats-row" style="margin-top:8px">
-            <div class="swim-stat"><div class="swim-stat-val">${s.crawl.distance}m</div><div class="swim-stat-lbl">Crawl</div></div>
-            <div class="swim-stat"><div class="swim-stat-val">${s.breast.distance}m</div><div class="swim-stat-lbl">Breast</div></div>
-            <div class="swim-stat"><div class="swim-stat-val">${s.crawl.pace||'—'}</div><div class="swim-stat-lbl">Pace</div></div>
-            <div class="swim-stat"><div class="swim-stat-val">${s.crawl.swolf||'—'}</div><div class="swim-stat-lbl">SWOLF</div></div>
-          </div>
-          <button class="btn btn-d btn-sm" style="margin-top:10px" onclick="delSwimSession(${s.id})">Delete</button>
-        </div>
-      </div>`;
-    }
-
-    const exs = Object.entries(s.exercises||{}).map(([id,ex])=>{
-      const done=(ex.sets||[]).filter(st=>st.done&&st.kg);
-      if(!done.length) return '';
-      return `<div class="exsum">
-        <div class="exsn">${ex.name}</div>
-        <div class="setchips">${done.map(st=>`<span class="chip">${st.kg}kg×${st.reps}</span>`).join('')}</div>
-        ${ex.notes?`<div style="font-size:.65rem;color:var(--muted);margin-top:3px;font-style:italic">${ex.notes}</div>`:''}
-      </div>`;
-    }).join('');
-
-    return `<div class="hcard">
-      <div class="hch" onclick="this.nextElementSibling.classList.toggle('open')">
-        <div>
-          <div class="hct">${s.templateName}</div>
-          <div class="hcd">Week ${s.week} · ${fmtDate(s.date)}${s.feel?' · '+s.feel:''}</div>
-        </div>
-        <div style="color:var(--muted);font-size:.75rem">▼</div>
-      </div>
-      <div class="hcb">
-        ${exs||'<div style="font-size:.73rem;color:var(--muted);padding-top:8px">No sets logged</div>'}
-        <button class="btn btn-d btn-sm" style="margin-top:10px" onclick="delSession(${s.id})">Delete</button>
-      </div>
-    </div>`;
+    if(s.type==='swim'){return `<div class="hcard" style="border-color:rgba(0,200,255,.2)"><div class="hch" onclick="this.nextElementSibling.classList.toggle('open')"><div><div class="hct" style="color:var(--swim)">🏊 Swim — ${s.totalDistance}m</div><div class="hcd">Week ${s.week} · ${fmtDate(s.date)} · ${s.crawlRatio}% crawl</div></div><div style="color:var(--muted);font-size:.75rem">▼</div></div><div class="hcb"><div class="swim-stats-row" style="margin-top:8px"><div class="swim-stat"><div class="swim-stat-val">${s.crawl.distance}m</div><div class="swim-stat-lbl">Crawl</div></div><div class="swim-stat"><div class="swim-stat-val">${s.breast.distance}m</div><div class="swim-stat-lbl">Breast</div></div><div class="swim-stat"><div class="swim-stat-val">${s.crawl.pace||'—'}</div><div class="swim-stat-lbl">Pace</div></div><div class="swim-stat"><div class="swim-stat-val">${s.crawl.swolf||'—'}</div><div class="swim-stat-lbl">SWOLF</div></div></div><button class="btn btn-d btn-sm" style="margin-top:10px" onclick="delSwimSession(${s.id})">Delete</button></div></div>`;}
+    const exs=Object.entries(s.exercises||{}).map(([id,ex])=>{const done=(ex.sets||[]).filter(st=>st.done&&st.kg);if(!done.length)return '';return `<div class="exsum"><div class="exsn">${ex.name}</div><div class="setchips">${done.map(st=>`<span class="chip">${st.kg}kg×${st.reps}</span>`).join('')}</div>${ex.notes?`<div style="font-size:.65rem;color:var(--muted);margin-top:3px;font-style:italic">${ex.notes}</div>`:''}</div>`;}).join('');
+    return `<div class="hcard"><div class="hch" onclick="this.nextElementSibling.classList.toggle('open')"><div><div class="hct">${s.templateName}</div><div class="hcd">Week ${s.week} · ${fmtDate(s.date)}${s.feel?' · '+s.feel:''}</div></div><div style="color:var(--muted);font-size:.75rem">▼</div></div><div class="hcb">${exs||'<div style="font-size:.73rem;color:var(--muted);padding-top:8px">No sets logged</div>'}<button class="btn btn-d btn-sm" style="margin-top:10px" onclick="delSession(${s.id})">Delete</button></div></div>`;
   }).join('');
 }
 
-function fmtDate(d) {
-  if(!d) return '—';
-  const dt=new Date(d);
-  const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${dt.getDate()} ${m[dt.getMonth()]}`;
-}
-
-function delSession(id) {
-  if(!confirm('Delete this session?')) return;
-  sessions=sessions.filter(s=>s.id!==id);
-  save(); renderHistory(); updateStats();
-}
-
-function clearAll() {
-  if(!confirm('Delete ALL sessions (strength + swim)? Cannot be undone.')) return;
-  sessions=[]; swimSessions=[];
-  save(); renderHistory(); updateStats();
-}
+function fmtDate(d){if(!d)return '—';const dt=new Date(d);const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return `${dt.getDate()} ${m[dt.getMonth()]}`;}
+function delSession(id){if(!confirm('Delete this session?'))return;sessions=sessions.filter(s=>s.id!==id);save();renderHistory();updateStats();}
+function clearAll(){if(!confirm('Delete ALL sessions (strength + swim)? Cannot be undone.'))return;sessions=[];swimSessions=[];save();renderHistory();updateStats();}
 
 // ═══════════════════════════════════════════════════════
 // PROGRESS CHARTS
 // ═══════════════════════════════════════════════════════
-function fillChartSelect() {
-  const sel=document.getElementById('chart-ex');
-  const cur=sel.value;
-  const map={};
+function fillChartSelect(){
+  const sel=document.getElementById('chart-ex');const cur=sel.value;const map={};
   sessions.forEach(s=>Object.entries(s.exercises||{}).forEach(([id,ex])=>map[id]=ex.name));
   sel.innerHTML='<option value="">Select exercise...</option>';
   Object.entries(map).forEach(([id,name])=>sel.innerHTML+=`<option value="${id}"${id===cur?' selected':''}>${name}</option>`);
 }
 
-function renderCharts() {
-  const id=document.getElementById('chart-ex').value;
-  const cw=document.getElementById('charts-wrap');
-  if(!id) { cw.innerHTML=`<div class="empty"><div class="ei">📈</div><h3>Select an exercise</h3><p>Choose above to see your progression.</p></div>`; return; }
-
-  const data=sessions
-    .filter(s=>s.exercises&&s.exercises[id])
-    .map(s=>{
-      const ex=s.exercises[id];
-      const done=(ex.sets||[]).filter(st=>st.done&&st.kg);
-      const maxKg=done.length?Math.max(...done.map(st=>parseFloat(st.kg)||0)):0;
-      const vol=done.reduce((a,st)=>a+(parseFloat(st.kg)||0)*(parseFloat(st.reps)||0),0);
-      return { date:s.date, week:s.week, maxKg, vol };
-    })
-    .filter(d=>d.maxKg>0)
-    .sort((a,b)=>new Date(a.date)-new Date(b.date));
-
-  if(!data.length) { cw.innerHTML=`<div class="empty"><div class="ei">🏋️</div><h3>No data yet</h3><p>Log some sets for this exercise first.</p></div>`; return; }
-
-  Object.values(chartInst).forEach(c=>c.destroy()); chartInst={};
+function renderCharts(){
+  const id=document.getElementById('chart-ex').value;const cw=document.getElementById('charts-wrap');
+  if(!id){cw.innerHTML=`<div class="empty"><div class="ei">📈</div><h3>Select an exercise</h3><p>Choose above to see your progression.</p></div>`;return;}
+  const data=sessions.filter(s=>s.exercises&&s.exercises[id]).map(s=>{const ex=s.exercises[id];const done=(ex.sets||[]).filter(st=>st.done&&st.kg);const maxKg=done.length?Math.max(...done.map(st=>parseFloat(st.kg)||0)):0;const vol=done.reduce((a,st)=>a+(parseFloat(st.kg)||0)*(parseFloat(st.reps)||0),0);return{date:s.date,week:s.week,maxKg,vol};}).filter(d=>d.maxKg>0).sort((a,b)=>new Date(a.date)-new Date(b.date));
+  if(!data.length){cw.innerHTML=`<div class="empty"><div class="ei">🏋️</div><h3>No data yet</h3><p>Log some sets for this exercise first.</p></div>`;return;}
+  Object.values(chartInst).forEach(c=>c.destroy());chartInst={};
   const labels=data.map(d=>`W${d.week}`);
-  cw.innerHTML=`
-    <div class="cwrap"><div class="ctitle">Top Weight <span>kg per session</span></div><canvas id="c-kg" height="160"></canvas></div>
-    <div class="cwrap"><div class="ctitle">Total Volume <span>kg × reps</span></div><canvas id="c-vol" height="160"></canvas></div>`;
-
-  const opts=(label,vals,color)=>({
-    type:'line',
-    data:{ labels, datasets:[{ label, data:vals, borderColor:color, backgroundColor:color+'22', tension:.4, fill:true, pointBackgroundColor:color, pointRadius:4 }] },
-    options:{ responsive:true, plugins:{ legend:{display:false}, tooltip:{ backgroundColor:'#18182a', borderColor:'#2a2a45', borderWidth:1, titleColor:'#e8e8f8', bodyColor:'#6b6b90' } }, scales:{ x:{ grid:{color:'#2a2a45'}, ticks:{color:'#6b6b90',font:{size:10}} }, y:{ grid:{color:'#2a2a45'}, ticks:{color:'#6b6b90',font:{size:10}} } } }
-  });
-
+  cw.innerHTML=`<div class="cwrap"><div class="ctitle">Top Weight <span>kg per session</span></div><canvas id="c-kg" height="160"></canvas></div><div class="cwrap"><div class="ctitle">Total Volume <span>kg × reps</span></div><canvas id="c-vol" height="160"></canvas></div>`;
+  const opts=(label,vals,color)=>({type:'line',data:{labels,datasets:[{label,data:vals,borderColor:color,backgroundColor:color+'22',tension:.4,fill:true,pointBackgroundColor:color,pointRadius:4}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:{backgroundColor:'#18182a',borderColor:'#2a2a45',borderWidth:1,titleColor:'#e8e8f8',bodyColor:'#6b6b90'}},scales:{x:{grid:{color:'#2a2a45'},ticks:{color:'#6b6b90',font:{size:10}}},y:{grid:{color:'#2a2a45'},ticks:{color:'#6b6b90',font:{size:10}}}}}});
   chartInst.kg=new Chart(document.getElementById('c-kg'),opts('kg',data.map(d=>d.maxKg),'#00e5a0'));
   chartInst.vol=new Chart(document.getElementById('c-vol'),opts('vol',data.map(d=>d.vol),'#4d8dff'));
 }
 
-// ═══════════════════════════════════════════════════════
-// MIGRATE from v3
-// ═══════════════════════════════════════════════════════
-function migrateFromV3() {
-  try {
-    const old = localStorage.getItem('jeroen_v3');
-    if(!old) return;
-    const oldData = JSON.parse(old);
-    if(Array.isArray(oldData) && oldData.length > 0 && sessions.length === 0) {
-      sessions = oldData;
-      save();
-      console.log('Migrated', oldData.length, 'sessions from v3');
-    }
-  } catch(e) {}
-}
+function migrateFromV3(){try{const old=localStorage.getItem('jeroen_v3');if(!old)return;const oldData=JSON.parse(old);if(Array.isArray(oldData)&&oldData.length>0&&sessions.length===0){sessions=oldData;save();console.log('Migrated',oldData.length,'sessions from v3');}}catch(e){}}
 
-// ═══════════════════════════════════════════════════════
-// INIT
-// ═══════════════════════════════════════════════════════
-load();
-migrateFromV3();
-initHome();
+load(); migrateFromV3(); initHome();
 </script>
 </body>
 </html>
