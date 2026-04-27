@@ -719,6 +719,9 @@ const LIB = {
   boxjump:  { name:'Box Jumps', sets:3, reps:'8–10', rest:'90s', tip:'Soft landing, step down to save joints. Full hip extension at top. Start with a height you can land quietly.', b:['bw'], nokg:true },
   burpee:   { name:'Burpees', sets:3, reps:'10', rest:'60s', tip:'Chest to floor, explosive up. Scale by stepping back instead of jumping if needed. Control the descent.', b:['bw'], nokg:true },
   farmcarry:{ name:'Farmers Carry', sets:3, reps:'40m', rest:'90s', tip:'Heavy dumbbells or kettlebells. Tall posture, shoulders packed, core braced. Walk steady — grip strength + full body stability.', b:[] },
+  // ACHILLES REHAB
+  heelhold: { name:'Double Leg Heel Raise Hold', sets:3, reps:'3', rest:'120s', tip:'Rise up on both feet, hold at top. Aim for 7/10 effort. Slow controlled lower if you lose it. Progress by adding single-leg bias.', b:['bw'], nokg:true, timed:true },
+  seatedheel:{ name:'Seated Heel Raise', sets:3, reps:'15', rest:'90s', tip:'Dumbbell across knees. Start light (10kg), progress as tolerated. Full range — drop heel below platform if possible, push to full extension.', b:[] },
 };
 
 const TEMPLATES = [
@@ -939,6 +942,7 @@ function renderModalExList(selectedIds) {
     { name:'Core', ids:['deadbug','pallof','crunch','plank','sideplank','oblique'] },
     { name:'Arms', ids:['tricep','bicep','hammer'] },
     { name:'Functional', ids:['boxjump','burpee','farmcarry'] },
+    { name:'Achilles Rehab', ids:['heelhold','seatedheel'] },
   ];
   container.innerHTML = categories.filter(c=>c.ids.length>0).map(cat=>`
     <div style="font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin:10px 0 5px">${cat.name}</div>
@@ -1115,6 +1119,7 @@ function openAddExercise() {
     { name:'Core', ids:['deadbug','pallof','crunch','plank','sideplank','oblique'].filter(id=>!alreadyIn.has(id)) },
     { name:'Arms', ids:['tricep','bicep','hammer'].filter(id=>!alreadyIn.has(id)) },
     { name:'Functional', ids:['boxjump','burpee','farmcarry'].filter(id=>!alreadyIn.has(id)) },
+    { name:'Achilles Rehab', ids:['heelhold','seatedheel'].filter(id=>!alreadyIn.has(id)) },
   ];
 
   container.innerHTML = categories.filter(c=>c.ids.length>0).map(cat=>`
