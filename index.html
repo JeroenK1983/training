@@ -141,6 +141,16 @@ body {
   transition:all .2s; flex-shrink:0;
 }
 .toggle-ex.active { background:var(--accent); border-color:var(--accent); color:#000; }
+.reorder-btns { display:flex; flex-direction:column; gap:2px; flex-shrink:0; }
+.reorder-btn {
+  width:28px; height:22px; border-radius:5px;
+  border:1px solid var(--border); background:none;
+  color:var(--muted); font-size:.65rem; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  transition:all .15s;
+}
+.reorder-btn:hover { border-color:var(--accent); color:var(--accent); }
+.reorder-btn:active { background:var(--accent); color:#000; }
 .setup-section { font-family:'Bebas Neue',sans-serif; font-size:.85rem; letter-spacing:2px; color:var(--muted); margin:14px 0 6px; display:flex; align-items:center; gap:8px; }
 .setup-section::after { content:''; flex:1; height:1px; background:var(--border); }
 
@@ -970,34 +980,69 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 function openSetupCustom(idx) {
   const cw=customWorkouts[idx]; currentTplKey='_custom_'+idx;
   document.getElementById('setup-title').textContent=cw.name;
-  activeExIds=[...cw.exIds];
-  const sl=document.getElementById('setup-list');
-  sl.innerHTML=`<div class="setup-section">Exercises</div>
-    ${cw.exIds.map(id=>{ const ex=LIB[id]; if(!ex) return '';
-      return `<div class="setup-ex" id="se-${id}"><div><div class="setup-ex-name">${ex.name}${badgeHtml(ex.b)}</div><div class="setup-ex-meta">${ex.sets} sets · ${ex.reps} reps · ${ex.rest} rest</div></div><button class="toggle-ex active" id="te-${id}" onclick="toggleSetupEx('${id}')">✓</button></div>`; }).join('')}`;
+  setupAllIds=[...cw.exIds];
+  setupRemoved=new Set();
+  renderSetupList();
   showPage('setup');
 }
 
 // ═══════════════════════════════════════════════════════
 // SETUP
 // ═══════════════════════════════════════════════════════
+let setupAllIds = [];
+let setupRemoved = new Set();
+
 function openSetup(key) {
   currentTplKey=key; const tpl=TEMPLATES.find(t=>t.key===key);
   document.getElementById('setup-title').textContent=tpl.name;
-  activeExIds=tpl.sections.flatMap(s=>s.exIds);
-  const sl=document.getElementById('setup-list');
-  sl.innerHTML=tpl.sections.map(s=>`<div class="setup-section">${s.name}</div>
-    ${s.exIds.map(id=>{ const ex=LIB[id]; const isFav=favourites.has(id);
-      return `<div class="setup-ex" id="se-${id}"><div style="flex:1"><div class="setup-ex-name">${isFav?'★ ':''}${ex.name}${badgeHtml(ex.b)}</div><div class="setup-ex-meta">${ex.sets} sets · ${ex.reps} reps · ${ex.rest} rest</div></div><button class="toggle-ex active" id="te-${id}" onclick="toggleSetupEx('${id}')">✓</button></div>`; }).join('')}
-  `).join('');
+  setupAllIds=tpl.sections.flatMap(s=>s.exIds);
+  setupRemoved=new Set();
+  renderSetupList();
   showPage('setup');
 }
 
+function renderSetupList() {
+  const sl=document.getElementById('setup-list');
+  sl.innerHTML = setupAllIds.map((id, idx) => {
+    const ex=LIB[id]; if(!ex) return '';
+    const isFav=favourites.has(id);
+    const removed=setupRemoved.has(id);
+    const isFirst = idx === 0;
+    const isLast = idx === setupAllIds.length - 1;
+    return `<div class="setup-ex ${removed?'removed':''}" id="se-${id}">
+      <div class="reorder-btns">
+        <button class="reorder-btn" onclick="moveExUp('${id}')" ${isFirst?'disabled style="opacity:.2;pointer-events:none"':''}>▲</button>
+        <button class="reorder-btn" onclick="moveExDown('${id}')" ${isLast?'disabled style="opacity:.2;pointer-events:none"':''}>▼</button>
+      </div>
+      <div style="flex:1">
+        <div class="setup-ex-name">${isFav?'★ ':''}${ex.name}${badgeHtml(ex.b)}</div>
+        <div class="setup-ex-meta">${ex.sets} sets · ${ex.reps} reps · ${ex.rest} rest</div>
+      </div>
+      <button class="toggle-ex ${removed?'':'active'}" id="te-${id}" onclick="toggleSetupEx('${id}')">${removed?'+':'✓'}</button>
+    </div>`;
+  }).join('');
+}
+
+function moveExUp(id) {
+  const idx = setupAllIds.indexOf(id);
+  if(idx <= 0) return;
+  [setupAllIds[idx-1], setupAllIds[idx]] = [setupAllIds[idx], setupAllIds[idx-1]];
+  renderSetupList();
+  document.getElementById('se-'+id)?.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function moveExDown(id) {
+  const idx = setupAllIds.indexOf(id);
+  if(idx < 0 || idx >= setupAllIds.length - 1) return;
+  [setupAllIds[idx], setupAllIds[idx+1]] = [setupAllIds[idx+1], setupAllIds[idx]];
+  renderSetupList();
+  document.getElementById('se-'+id)?.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
 function toggleSetupEx(id) {
-  const btn=document.getElementById('te-'+id); const row=document.getElementById('se-'+id);
-  const idx=activeExIds.indexOf(id);
-  if(idx>-1){activeExIds.splice(idx,1);btn.classList.remove('active');btn.textContent='+';row.classList.add('removed');}
-  else{activeExIds.push(id);btn.classList.add('active');btn.textContent='✓';row.classList.remove('removed');}
+  if(setupRemoved.has(id)) { setupRemoved.delete(id); }
+  else { setupRemoved.add(id); }
+  renderSetupList();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1205,6 +1250,8 @@ function appendExerciseCard(id) {
 }
 
 function startLogging() {
+  // Compute active exercises from setup: ordered list minus removed
+  activeExIds = setupAllIds.filter(id => !setupRemoved.has(id));
   if(!activeExIds.length){alert('Add at least one exercise!');return;}
   editingSessionId = null;
   stopTimer();
